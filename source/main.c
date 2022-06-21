@@ -6,11 +6,6 @@
 
 int main(void)
 {
-    int* p = NULL;
-    p = malloc(sizeof(int));
-    if (!p)
-        *p = 'A' + 3;
-
     log_init();
     board_init();
 
