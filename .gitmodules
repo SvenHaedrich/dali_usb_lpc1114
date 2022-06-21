@@ -21,4 +21,7 @@
 	url = git@github.com:scottt/cmsis-core-lpc111x.git
 [submodule "thirdparty/cmsis-core"]
 	path = thirdparty/cmsis-core
-	url = git@github.com:Armmbed/cmsis-core.git
+	url = git@github.com:ARMmbed/cmsis-core.git
+[submodule "thirdparty/cmsis-core-lpc111x"]
+	path = thirdparty/cmsis-core-lpc111x
+	url = git@github.com:scottt/cmsis-core-lpc111x.git
