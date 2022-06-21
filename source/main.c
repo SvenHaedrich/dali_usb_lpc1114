@@ -10,7 +10,6 @@ int main(void)
     p = malloc(sizeof(int));
     if (!p)
         *p = 'A' + 3;
-    puts("(TM) funktioniert\r");
 
     log_init();
     board_init();
