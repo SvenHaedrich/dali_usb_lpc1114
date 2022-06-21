@@ -187,5 +187,4 @@ static void __attribute__((constructor)) uart_init(void)
     LPC_UART->LCR = (3 << U0LCR_WLS_SHIFT) & U0LCR_WLS_MASK;
     LPC_UART->FCR = U0FCR_FIFOEN;
     LPC_UART->TER = U0TER_TXEN;
-    __io_putchar('!');
 }
