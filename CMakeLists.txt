@@ -53,9 +53,11 @@ endif()
 
 include_directories(
         source
-        # thirdarty/FreeRTOS-Kernel/Source/CMSIS_RTOS
-        # thirdparty/FreeRTOS-Kernel/include
-        # thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0
+        thirdparty/cmsis-core-lpc111x/cmsis-core-lpc111x
+        thirdparty/cmsis-core/cmsis-core
+        thirdarty/FreeRTOS-Kernel/Source/CMSIS_RTOS
+        thirdparty/FreeRTOS-Kernel/include
+        thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0
         )
 
 add_executable(${PROJECT_NAME}.elf ${SOURCE_FILES} ${LINKER_SCRIPT})
