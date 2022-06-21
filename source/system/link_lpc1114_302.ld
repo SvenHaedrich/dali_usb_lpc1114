@@ -2,7 +2,7 @@
 ENTRY(Reset_Handler)
 
 /* === stack and heap definitions =============== */
-_estack = 0x10001000;	/* end of "RAM" Ram type memory */
+_estack = 0x10002000;	/* end of "RAM" Ram type memory */
 
 _Min_Heap_Size = 0x300;	/* required amount of heap  */
 _Min_Stack_Size = 0x300;	/* required amount of stack */
@@ -12,7 +12,7 @@ _Min_Stack_Size = 0x300;	/* required amount of stack */
 MEMORY
 {
     flash (rx)  : org = 0x00000000, len = 32k
-    ram   (rwx) : org = 0x10000000, len = 4k
+    ram   (rwx) : org = 0x10000000, len = 8k
 }
 _flash_start = ORIGIN(flash);
 _flash_end = ORIGIN(flash)+LENGTH(flash);
