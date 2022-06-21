@@ -1,42 +1,3 @@
-/**
-  ******************************************************************************
-  * @file      startup_stm32f091xc.s
-  * @author    MCD Application Team
-  * @brief     STM32F091xC devices vector table for GCC toolchain.
-  *            This module performs:
-  *                - Set the initial SP
-  *                - Set the initial PC == Reset_Handler,
-  *                - Set the vector table entries with the exceptions ISR address
-  *                - Branches to main in the C library (which eventually
-  *                  calls main()).
-  *            After Reset the Cortex-M0 processor is in Thread mode,
-  *            priority is Privileged, and the Stack is set to Main.
-  ******************************************************************************
-  * 
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
-  ******************************************************************************
-  */
 
   .syntax unified
   .cpu cortex-m0
@@ -109,30 +70,15 @@ LoopForever:
 
 .size Reset_Handler, .-Reset_Handler
 
-/**
- * @brief  This is the code that gets called when the processor receives an
- *         unexpected interrupt.  This simply enters an infinite loop, preserving
- *         the system state for examination by a debugger.
- *
- * @param  None
- * @retval : None
-*/
     .section .text.Default_Handler,"ax",%progbits
 Default_Handler:
 Infinite_Loop:
   b Infinite_Loop
   .size Default_Handler, .-Default_Handler
-/******************************************************************************
-*
-* The minimal vector table for a Cortex M0.  Note that the proper constructs
-* must be placed on this to ensure that it ends up at physical address
-* 0x0000.0000.
-*
-******************************************************************************/
+
    .section .isr_vector,"a",%progbits
   .type g_pfnVectors, %object
   .size g_pfnVectors, .-g_pfnVectors
-
 
 g_pfnVectors:
   .word  _estack
@@ -166,31 +112,24 @@ g_pfnVectors:
   .word  WAKEUP_IRQHandler                 /* PIO1_0 Wakeup                */
   .word  CAN_IRQHandler                    /* CAN                          */
   .word  SSP1_IRQHandler                   /* SPI/SSP1                     */
-  .word  I2C_IRQHandler                    /* I2C0 Interrupt               */
+  .word  I2C_IRQHandler                    /* I2C0                         */
   .word  TIMER16_0_IRQHandler              /* 16-bit Timer 0               */
-  .word  TIMER16_1_IRQHandler              /* RCC and CRS                  */
-  .word  TIMER32_0_IRQHandler                /* EXTI Line 0 and 1            */
-  .word  TIMER32_1_IRQHandler                /* EXTI Line 2 and 3            */
-  .word  SSP0_IRQHandler               /* EXTI Line 4 to 15            */
-  .word  UART_IRQHandler                    /* TSC                          */
-  .word  0               /* DMA1 Channel 1               */
-  .word  0  /* DMA1 Channel 2 and 3 & DMA2 Channel 1 and 2 */
-  .word  ADC_IRQHandler  /* DMA1 Channel 4 to 7 & DMA2 Channel 3 to 5 */
-  .word  WDT_IRQHandler              /* ADC1, COMP1 and COMP2         */
-  .word  BOD_IRQHandler    /* TIM1 Break, Update, Trigger and Commutation */
-  .word  0                /* TIM1 Capture Compare         */
-  .word  PIOINT3_IRQHandler                   /* TIM2                         */
-  .word  PIOINT2_IRQHandler                   /* TIM3                         */
-  .word  PIOINT1_IRQHandler               /* TIM6 and DAC                 */
-  .word  PIOINT0_IRQHandler                   /* TIM7                         */
+  .word  TIMER16_1_IRQHandler              /* 16-bit Timer 1               */
+  .word  TIMER32_0_IRQHandler              /* 32-bit Timer 0               */
+  .word  TIMER32_1_IRQHandler              /* 32-bit Timer 1               */
+  .word  SSP0_IRQHandler                   /* SSP0                         */
+  .word  UART_IRQHandler                   /* UART                         */
+  .word  0                                 /* reserved                     */
+  .word  0                                 /* reserved                     */
+  .word  ADC_IRQHandler                    /* ADC                          */
+  .word  WDT_IRQHandler                    /* WDT                          */
+  .word  BOD_IRQHandler                    /* BOD                          */
+  .word  0                                 /* reserved                     */
+  .word  PIOINT3_IRQHandler                /* PIOINT3                      */
+  .word  PIOINT2_IRQHandler                /* PIOINT2                      */
+  .word  PIOINT1_IRQHandler                /* PIOINT1                      */
+  .word  PIOINT0_IRQHandler                /* PIOINT0                      */
 
-/*******************************************************************************
-*
-* Provide weak aliases for each Exception handler to the Default_Handler.
-* As they are weak aliases, any function with the same name will override
-* this definition.
-*
-*******************************************************************************/
 
   .weak      NMI_Handler
   .thumb_set NMI_Handler,Default_Handler
@@ -257,5 +196,3 @@ g_pfnVectors:
 
   .weak      PIOINT0_IRQHandler
   .thumb_set PIOINT0_IRQHandler,Default_Handler
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
