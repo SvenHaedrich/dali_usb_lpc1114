@@ -1,0 +1,6 @@
+.idea/
+.vscode/
+build/
+ozone_dali_usb.jdebug
+ozone_dali_usb.jdebug.user
+dali-usb.code-workspace

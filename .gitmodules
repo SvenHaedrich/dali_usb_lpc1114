@@ -1,0 +1,24 @@
+[submodule "dali_101"]
+	path = dali_101
+	url = git@github.com:SvenHaedrich/dali_101.git
+[submodule "source/dali_101"]
+	path = source/dali_101
+	url = git@github.com:SvenHaedrich/dali_101.git
+[submodule "thirdparty/cmsis_device_f0"]
+	path = thirdparty/cmsis_device_f0
+	url = git@github.com:STMicroelectronics/cmsis_device_f0.git
+[submodule "thirdparty/cmsis_core"]
+	path = thirdparty/cmsis_core
+	url = git@github.com:STMicroelectronics/cmsis_core.git
+[submodule "thirdparty/stm32f0xx_hal_driver"]
+	path = thirdparty/stm32f0xx_hal_driver
+	url = git@github.com:STMicroelectronics/stm32f0xx_hal_driver.git
+[submodule "thirdparty/FreeRTOS-Kernel"]
+	path = thirdparty/FreeRTOS-Kernel
+	url = git@github.com:FreeRTOS/FreeRTOS-Kernel.git
+[submodule "thirdparty/cmsis"]
+	path = thirdparty/cmsis
+	url = git@github.com:scottt/cmsis-core-lpc111x.git
+[submodule "thirdparty/cmsis-core"]
+	path = thirdparty/cmsis-core
+	url = git@github.com:Armmbed/cmsis-core.git
