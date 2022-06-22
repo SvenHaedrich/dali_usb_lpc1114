@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include "version.h"
 #include "log.h"
 
 #ifndef NDEBUG
@@ -102,20 +101,12 @@ int log_printf(uint32_t topic, const char* format, ...)
 }
 #endif
 
-void log_show_information(void)
-{
-    printf("DALI USB interface - SevenLab 2022\r\n");
-    printf("Version %d.%d.%d \r\n", MAJOR_VERSION_SOFTWARE, MINOR_VERSION_SOFTWARE, BUGFIX_VERSION_SOFTWARE);
-    printf(LOG_BUILD_VERSION);
-}
-
 void log_init(void)
 {
 #ifndef NDEBUG
     SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
     log_set_active_topics(LOG_HDRV | LOG_UART);
+    LOG_THIS_INVOCATION(LOG_FORCE);
 #endif
-
-    log_show_information();
     // LOG_TEST(log_mutex = xSemaphoreCreateMutexStatic(&log_mutex_buffer));
 }
