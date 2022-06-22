@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
 
 # Configure the project
@@ -26,19 +26,17 @@ add_link_options(-Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map)
 add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb)
 add_link_options(-Wl,--start-group -lc -lm -Wl,--end-group)
 
-add_custom_target(upload COMMAND make)
-
 file(GLOB_RECURSE SOURCE_FILES
         "source/*.c"
         "source/system/start_lpc1114.s"
-        # "./thirdparty/FreeRTOS-Kernel/croutine.c"
-        # "./thirdparty/FreeRTOS-Kernel/event_groups.c"
-        # "./thirdparty/FreeRTOS-Kernel/list.c"
-        # "./thirdparty/FreeRTOS-Kernel/queue.c"
-        # "./thirdparty/FreeRTOS-Kernel/stream_buffer.c"
-        # "./thirdparty/FreeRTOS-Kernel/tasks.c"
-        # "./thirdparty/FreeRTOS-Kernel/timers.c"
-        # "./thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0/port.c" 
+        "./thirdparty/FreeRTOS-Kernel/croutine.c"
+        "./thirdparty/FreeRTOS-Kernel/event_groups.c"
+        "./thirdparty/FreeRTOS-Kernel/list.c"
+        "./thirdparty/FreeRTOS-Kernel/queue.c"
+        "./thirdparty/FreeRTOS-Kernel/stream_buffer.c"
+        "./thirdparty/FreeRTOS-Kernel/tasks.c"
+        "./thirdparty/FreeRTOS-Kernel/timers.c"
+        "./thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0/port.c" 
         )
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -60,8 +58,13 @@ include_directories(
         thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0
         )
 
+# set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
+# set(FREERTOS_PORT "GCC_ARM_C0")
+# add_subdirectory("thirdparty/FreeRTOS-Kernel")
+
 add_executable(${PROJECT_NAME}.elf ${SOURCE_FILES} ${LINKER_SCRIPT})
 target_link_libraries(${PROJECT_NAME}.elf m)
+# target_link_libraries(${PROJECT_NAME} PRIVATE freertos)
 
 set(BIN_FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin)
 add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
