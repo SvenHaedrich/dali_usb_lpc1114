@@ -68,8 +68,8 @@ Revision: $Rev: 21074 $
 // Take in and set to correct values for Cortex-A systems with CPU cache
 //
 //#define SEGGER_RTT_CPU_CACHE_LINE_SIZE            (32)          // Largest cache line size (in bytes) in the current
-//system #define SEGGER_RTT_UNCACHED_OFF                   (0xFB000000)  // Address alias where RTT CB and buffers can
-//be accessed uncached
+// system #define SEGGER_RTT_UNCACHED_OFF                   (0xFB000000)  // Address alias where RTT CB and buffers can
+// be accessed uncached
 //
 // Most common case:
 // Up-channel 0: RTT
@@ -88,7 +88,7 @@ Revision: $Rev: 21074 $
 #endif
 
 #ifndef BUFFER_SIZE_UP
-#define BUFFER_SIZE_UP (128) // Size of the buffer for terminal output of target, up to host (Default: 1k)
+#define BUFFER_SIZE_UP (1024) // Size of the buffer for terminal output of target, up to host (Default: 1k)
 #endif
 
 #ifndef BUFFER_SIZE_DOWN
