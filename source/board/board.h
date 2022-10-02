@@ -2,11 +2,12 @@
 
 #define DALI_RX_LOW true
 #define DALI_RX_HIGH false
-#define DALI_TX_LOW true
-#define DALI_TX_HIGH false
+#define DALI_TX_IDLE true
+#define DALI_TX_ACTIVE false
 
-#define BOARD_MAIN_CLOCK 48000000
-#define BOARD_UART_CLOCK 12000000
+#define BOARD_MAIN_CLOCK (48000000U)
+#define BOARD_AHB_CLOCK (48000000U)
+#define BOARD_UART_CLOCK (12000000U)
 
 enum board_led { LED_DALI, SERIAL_RX, SERIAL_TX };
 
@@ -20,3 +21,9 @@ void board_flash_rx(void);
 void board_flash_tx(void);
 void board_error(void);
 bool core_isr_active(void);
+
+void board_dali_tx_set(bool state);
+void board_dali_tx_timer_stop(void);
+void board_dali_tx_timer_next(uint32_t count);
+void board_dali_tx_timer_setup(uint32_t count);
+void board_dali_tx_set_callback(void (*isr)(void));
