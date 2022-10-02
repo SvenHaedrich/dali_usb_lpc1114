@@ -25,8 +25,8 @@ sudo apt-get install cmake
 
 Debug build
 ```bash
-cmake -B build-debug -S . -DCMAKE_BUILD_TYPE=Debug -DLOGBACKEND_RTT=ON
-cmake --build build-debug --clean-first
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DLOGBACKEND_RTT=ON
+cmake --build build --clean-first
 ```
 
 Release build
@@ -43,10 +43,10 @@ If your arm-none-eabi gcc is not in your path, add the following to your initial
 ### Hardware Configuration
 
 OSC - 12 MHz
-PA0 - D1 LED Rx \
-PA1 - D2 LED Tx \
-PA2 - D3 LED DALI status \
-PA8 - DALI TX \
+
+PIO1_6 - UART Rx
+PIO1_7 - UART Tx
+PIO0_1 - CT32B0_MAT2 - DALI TX \
 PA9 - UART TX \
 PA10 - UART RX
 PB14 - DALI RX \
