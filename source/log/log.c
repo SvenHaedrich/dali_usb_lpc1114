@@ -105,7 +105,7 @@ void log_init(void)
 {
 #ifndef NDEBUG
     SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
-    log_set_active_topics(LOG_HDRV | LOG_UART);
+    log_set_active_topics(LOG_HDRV | LOG_LOW);
     LOG_THIS_INVOCATION(LOG_FORCE);
 #endif
     // LOG_TEST(log_mutex = xSemaphoreCreateMutexStatic(&log_mutex_buffer));
