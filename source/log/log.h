@@ -13,6 +13,7 @@
 #define LOG_HDRV 0x00000001UL
 #define LOG_UART 0x00000002UL
 #define LOG_INIT 0x00000004UL
+#define LOG_LOW 0x00000008UL
 
 /* the following works only when SOURCE_PATH_SIZE is the length of the absolute source path location
  * you can add these lines to cmake:
