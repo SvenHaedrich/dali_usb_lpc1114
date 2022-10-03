@@ -6,7 +6,7 @@
 #include "dali_101_tx.h"
 
 #define MAX_DATA_LENGTH  (32U)
-#define COUNT_ARRAY_SIZE (1U+MAX_DATA_LENGTH*2U+1U) // start bit, 32 data bits, 1 stop bit
+#define COUNT_ARRAY_SIZE (2U+MAX_DATA_LENGTH*2U+1U) // start bit, 32 data bits, 1 stop bit
 
 const struct _dali_timing {
     uint32_t half_bit_us;
@@ -37,7 +37,7 @@ static void dali_reset_counts(void)
 static enum dali_tx_return dali_add_bit(bool value)
 {
     if (dali_tx.state_now == value) {
-        if (dali_tx.index_max >= (COUNT_ARRAY_SIZE-2)) {
+        if (dali_tx.index_max > (COUNT_ARRAY_SIZE-2)) {
             return -RETURN_CAN_NOT_CONVERT;
         }
         dali_tx.count_now += dali_timing.half_bit_us;
@@ -46,7 +46,7 @@ static enum dali_tx_return dali_add_bit(bool value)
         dali_tx.count[dali_tx.index_max++] = dali_tx.count_now;
     }
     else {
-        if (dali_tx.index_max >= (COUNT_ARRAY_SIZE-1)) {
+        if (dali_tx.index_max > (COUNT_ARRAY_SIZE-1)) {
             return -RETURN_CAN_NOT_CONVERT;
         }
         dali_tx.index_max--;
@@ -62,14 +62,14 @@ static enum dali_tx_return dali_add_bit(bool value)
 static enum dali_tx_return dali_add_stop_condition(void)
 {
     if (dali_tx.state_now) {
-        if (dali_tx.index_max >= (COUNT_ARRAY_SIZE-1)) {
+        if (!dali_tx.index_max) {
             return -RETURN_CAN_NOT_CONVERT;
         }
         dali_tx.index_max--;
         dali_tx.count_now = dali_tx.count[dali_tx.index_max-1] + dali_timing.stop_condition_us;
     } 
     else {
-        if (dali_tx.index_max >= COUNT_ARRAY_SIZE) {
+        if (dali_tx.index_max > COUNT_ARRAY_SIZE) {
             return -RETURN_CAN_NOT_CONVERT;
         }
         dali_tx.count_now += dali_timing.stop_condition_us;
@@ -124,9 +124,9 @@ enum dali_tx_return dali_transmit (const struct dali_tx_frame frame)
     enum dali_tx_return rc = dali_calculate_counts(frame);
     LOG_PRINTF(LOG_LOW, "  count entries used: %d dec", (dali_tx.index_max+1));
     if (rc != RETURN_OK) {
+        LOG_PRINTF(LOG_LOW, "  conversion failed: %d", rc);
         return rc;
     }
-    // TODO wait for transmission slot to be available
     board_dali_tx_timer_setup(dali_tx.count[dali_tx.index_next++]);
     return rc;
 }
