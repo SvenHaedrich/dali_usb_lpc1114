@@ -10,6 +10,12 @@ enum dali_tx_priority {
     DALI_PRIORITY_SEND_TWICE = 6,
 };
 
+enum dali_tx_return {
+    RETURN_OK = 0,
+    RETURN_CAN_NOT_CONVERT = 1,
+    RETURN_BAD_ARGUMENT = 2,
+};
+
 struct dali_tx_frame {
     uint8_t length;
     uint32_t data;
@@ -20,5 +26,5 @@ struct dali_tx_frame {
 
 bool dali_is_tx_active(void);
 void dali_destroy (void);
-void dali_transmit (const struct dali_tx_frame frame);
+enum dali_tx_return dali_transmit (const struct dali_tx_frame frame);
 void dali_tx_init(void);

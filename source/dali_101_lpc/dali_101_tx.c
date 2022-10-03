@@ -5,7 +5,8 @@
 #include "board/board.h"
 #include "dali_101_tx.h"
 
-#define MAX_COUNTS 66
+#define MAX_DATA_LENGTH  (32U)
+#define COUNT_ARRAY_SIZE (1U+MAX_DATA_LENGTH*2U+1U) // start bit, 32 data bits, 1 stop bit
 
 const struct _dali_timing {
     uint32_t half_bit_us;
@@ -19,11 +20,11 @@ const struct _dali_timing {
 
 struct _dali_tx {
     uint32_t count_now;
-    uint32_t count[MAX_COUNTS];
+    uint32_t count[COUNT_ARRAY_SIZE];
     int8_t index_next;
     int8_t index_max;
     bool state_now;
-} dali_tx = { .state_now = DALI_TX_IDLE};
+} dali_tx;
 
 static void dali_reset_counts(void)
 {
@@ -33,55 +34,83 @@ static void dali_reset_counts(void)
     dali_tx.state_now = true;
 }
 
-static void dali_add_bit(bool value)
+static enum dali_tx_return dali_add_bit(bool value)
 {
     if (dali_tx.state_now == value) {
+        if (dali_tx.index_max >= (COUNT_ARRAY_SIZE-2)) {
+            return -RETURN_CAN_NOT_CONVERT;
+        }
         dali_tx.count_now += dali_timing.half_bit_us;
         dali_tx.count[dali_tx.index_max++] = dali_tx.count_now;
         dali_tx.count_now += dali_timing.half_bit_us;
         dali_tx.count[dali_tx.index_max++] = dali_tx.count_now;
     }
     else {
+        if (dali_tx.index_max >= (COUNT_ARRAY_SIZE-1)) {
+            return -RETURN_CAN_NOT_CONVERT;
+        }
         dali_tx.index_max--;
-        dali_tx.count_now += dali_timing.full_bit_us;
+        dali_tx.count_now = dali_tx.count[dali_tx.index_max -1] + dali_timing.full_bit_us;
         dali_tx.count[dali_tx.index_max++] = dali_tx.count_now;
         dali_tx.count_now += dali_timing.half_bit_us;
         dali_tx.count[dali_tx.index_max++] = dali_tx.count_now;
     }
     dali_tx.state_now = value;
+    return RETURN_OK;
 }
 
-static void dali_add_stop_condition(void)
+static enum dali_tx_return dali_add_stop_condition(void)
 {
-    dali_tx.count_now += dali_timing.stop_condition_us;
-    dali_tx.count[dali_tx.index_max] = dali_tx.count_now;
+    if (dali_tx.state_now) {
+        if (dali_tx.index_max >= (COUNT_ARRAY_SIZE-1)) {
+            return -RETURN_CAN_NOT_CONVERT;
+        }
+        dali_tx.index_max--;
+        dali_tx.count_now = dali_tx.count[dali_tx.index_max-1] + dali_timing.stop_condition_us;
+    } 
+    else {
+        if (dali_tx.index_max >= COUNT_ARRAY_SIZE) {
+            return -RETURN_CAN_NOT_CONVERT;
+        }
+        dali_tx.count_now += dali_timing.stop_condition_us;
+        dali_tx.count[dali_tx.index_max] = dali_tx.count_now;
+    }
+    return RETURN_OK;
 }
 
-static void dali_calculate_counts(const struct dali_tx_frame frame)
+static enum dali_tx_return dali_calculate_counts(const struct dali_tx_frame frame)
 {
     LOG_THIS_INVOCATION(LOG_LOW);
-    dali_reset_counts();
-    dali_add_bit(true);
-    for (uint_fast8_t i=frame.length; i>0; i--) {
-        dali_add_bit(frame.data & (1 << i));
+
+    if (frame.length > MAX_DATA_LENGTH) {
+        return -RETURN_BAD_ARGUMENT;
     }
-    dali_add_stop_condition();
+
+    dali_reset_counts();
+    enum dali_tx_return rc = dali_add_bit(true);
+    if (rc != RETURN_OK) {
+        return rc;
+    }
+    for (int_fast8_t i=(frame.length-1); i>=0; i--) {
+        rc = dali_add_bit(frame.data & (1 << i));
+        if (rc != RETURN_OK) {
+            return rc;
+        }
+    }
+    return dali_add_stop_condition();
 }
 
 static void dali_set_next_count(void)
 {
     if (dali_tx.index_next < dali_tx.index_max) {
-        board_dali_tx_timer_next(dali_tx.count[dali_tx.index_next++]);
+        board_dali_tx_timer_next(dali_tx.count[dali_tx.index_next++], NOTHING);
+        return;
     } 
-    else  {
-        board_dali_tx_timer_stop();
+    if (dali_tx.index_next == dali_tx.index_max) {
+        board_dali_tx_timer_next(dali_tx.count[dali_tx.index_next++], DISABLE_TOGGLE);
+        return;
     }
-}
-
-bool dali_is_tx_active(void)
-{
-    // TODO
-    return false;
+    board_dali_tx_timer_stop();
 }
 
 void dali_destroy (void)
@@ -89,11 +118,17 @@ void dali_destroy (void)
     // TODO
 }
 
-void dali_transmit (const struct dali_tx_frame frame)
+enum dali_tx_return dali_transmit (const struct dali_tx_frame frame)
 {
-    LOG_PRINTF(LOG_LOW,"dali_transmit (0x%08x)");
-    dali_calculate_counts(frame);
+    LOG_PRINTF(LOG_LOW, "dali_transmit (0x%08x)", frame.data);
+    enum dali_tx_return rc = dali_calculate_counts(frame);
+    LOG_PRINTF(LOG_LOW, "  count entries used: %d dec", (dali_tx.index_max+1));
+    if (rc != RETURN_OK) {
+        return rc;
+    }
+    // TODO wait for transmission slot to be available
     board_dali_tx_timer_setup(dali_tx.count[dali_tx.index_next++]);
+    return rc;
 }
 
 void dali_tx_init(void)

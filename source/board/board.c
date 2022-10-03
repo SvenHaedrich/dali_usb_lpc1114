@@ -29,7 +29,6 @@ static StaticTimer_t board_tx_buffer;
 uint32_t SystemCoreClock = 12000000;
 void (*irq_timer_32_0)(void) = {0};
 
-
 bool core_isr_active(void)
 {
     return SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk;
@@ -107,6 +106,7 @@ static void board_setup_clocking(void)
 static void board_setup_pins(void)
 {
     LPC_GPIO3->DIR |= (1U << 5U);
+    LPC_GPIO0->DIR |= (1U << 1U);
 }
 
 void board_set_led(enum board_led id)
@@ -135,12 +135,12 @@ void board_dali_tx_set(bool state)
     // hysteresis disabled
     // standard gpio
     LPC_GPIO0->DIR |= (1U << 1U);
-    LPC_IOCON->PIO0_1 = (IOCON_PIO0_1_FUNC_MASK & (0 << IOCON_PIO0_1_FUNC_SHIFT))
-                      | (IOCON_PIO0_1_MODE_MASK & (2 << IOCON_PIO0_1_MODE_SHIFT));
+    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (0 << IOCON_R_PIO0_11_FUNC_SHIFT))
+                         | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT));
     if (state)
-        LPC_GPIO0->DATA |= (1U << 1U);
+        LPC_GPIO0->DATA |= (1U << 11U);
     else
-        LPC_GPIO0->DATA &= ~(1U << 1U);
+        LPC_GPIO0->DATA &= ~(1U << 11U);
 }
 
 void board_dali_tx_timer_stop(void)
@@ -150,43 +150,46 @@ void board_dali_tx_timer_stop(void)
     LPC_TMR32B0->EMR = (TMR32B0EMR_EM2|(TMR32B0EMR_EMC2_MASK & (0 << TMR32B0EMR_EMC2_SHIFT)));
 }
 
-void board_dali_tx_timer_next(uint32_t count)
+void board_dali_tx_timer_next(uint32_t count, enum board_toggle toggle)
 {
-    LPC_TMR32B0->MR2 = count;
+    LPC_TMR32B0->MR3 = count;
+    if (toggle == DISABLE_TOGGLE) {
+        LPC_TMR32B0->EMR &= ~TMR32B0EMR_EMC3_MASK;
+    }
 }
 
 void board_dali_tx_timer_setup(uint32_t count)
 {
     LPC_TMR32B0->TCR = 2;
     board_dali_tx_timer_stop();
-    board_dali_tx_timer_next(count);
+    board_dali_tx_timer_next(count,NOTHING);
     // set base rate
     LPC_TMR32B0->PR = (BOARD_AHB_CLOCK / DALI_TIMER_RATE_HZ) - 1;
     // set timer mode
     LPC_TMR32B0->CTCR = 0;
-    // on MR2 match: IRQ, reset TC
-    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR2I|TMR32B0MCR_MR2R|TMR32B0MCR_MR2S)) | (TMR32B0MCR_MR2I);
-    // on MR2 match: toggle output - start from 1
-    LPC_TMR32B0->EMR = (TMR32B0EMR_EM2|(TMR32B0EMR_EMC2_MASK & (3 << TMR32B0EMR_EMC2_SHIFT)));
+    // on MR3 match: IRQ
+    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR3I|TMR32B0MCR_MR3R|TMR32B0MCR_MR3S)) | (TMR32B0MCR_MR3I);
+    // on MR3 match: toggle output - start with DALI active
+    LPC_TMR32B0->EMR = TMR32B0EMR_EM3 | (TMR32B0EMR_EMC3_MASK & (3 << TMR32B0EMR_EMC3_SHIFT));
     // outputs are controlled by EMx
     LPC_TMR32B0->PWMC = 0;
     // pin function: CT32B0_MAT2
     // function mode: no pull resistors
     // hysteresis disabled
     // standard gpio
-    LPC_IOCON->PIO0_1 = (IOCON_PIO0_1_FUNC_MASK & (2 << IOCON_PIO0_1_FUNC_SHIFT))
-                      | (IOCON_PIO0_1_MODE_MASK & (2 << IOCON_PIO0_1_MODE_SHIFT));
+    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (3 << IOCON_R_PIO0_11_FUNC_SHIFT))
+                         | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT));
     // start timer
     LPC_TMR32B0->TCR = 1;
 }
 
 void TIMER32_0_IRQHandler(void)
 {
-    if (LPC_TMR32B0->IR & TMR32B0IR_MR2_INTERRUPT) {
+    if (LPC_TMR32B0->IR & TMR32B0IR_MR3_INTERRUPT) {
         if (irq_timer_32_0) {
             irq_timer_32_0();
         }
-        LPC_TMR32B0->IR = TMR32B0IR_MR2_INTERRUPT;
+        LPC_TMR32B0->IR = TMR32B0IR_MR3_INTERRUPT;
     }
 }
 
@@ -194,7 +197,6 @@ void board_dali_tx_set_callback(void (*isr)(void))
 {
     irq_timer_32_0 = isr;
 }
-
 
 static void board_heartbeat(TimerHandle_t NOUSE(dummy))
 {
