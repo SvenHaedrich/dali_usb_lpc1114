@@ -1,8 +1,5 @@
 #pragma once
 
-/* Exported constants --------------------------------------------------------*/
-#define OS_DEFAULT_STACKSIZE 128
-
 /* Exported functions prototypes ---------------------------------------------*/
 _Noreturn void Error_Handler(void);
 

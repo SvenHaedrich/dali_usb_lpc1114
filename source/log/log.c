@@ -48,8 +48,7 @@ static void log_unlock(void)
 
 static void log_print_time(void)
 {
-    // uint32_t time_now = xTaskGetTickCount();
-    uint32_t time_now = 0;
+    uint32_t time_now = xTaskGetTickCount();
     uint32_t seconds_now = (time_now / configTICK_RATE_HZ);
     uint32_t fraction_now = (time_now % configTICK_RATE_HZ);
 

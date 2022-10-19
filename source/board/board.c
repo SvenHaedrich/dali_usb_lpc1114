@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <string.h>
 
 #include "FreeRTOS.h"
 #include "timers.h"
@@ -9,25 +10,24 @@
 #include "../log/log.h"
 #include "board.h"
 
-#define HEARTBEAT_PERIOD_MS 100
-#define SLOW_HEARTBEAT_COUNTER 10
-#define FLASH_PERIOD_MS 200
+#define HEARTBEAT_PERIOD_MS (100U)
+#define SLOW_HEARTBEAT_COUNTER (10U)
+#define FLASH_PERIOD_MS (200U)
 
-#define DALI_TIMER_RATE_HZ 1000000
+#define DALI_TIMER_RATE_HZ (1000000U)
 
 static TimerHandle_t board_heartbeat_timer_id;
-static TimerHandle_t board_rx_timer_id;
-static TimerHandle_t board_tx_timer_id;
+// static TimerHandle_t board_rx_timer_id;
+// static TimerHandle_t board_tx_timer_id;
 
 static StaticTimer_t board_heartbeat_buffer;
-static StaticTimer_t board_rx_buffer;
-static StaticTimer_t board_tx_buffer;
-
-#include "board.h"
-#include "string.h"
+// static StaticTimer_t board_rx_buffer;
+// static StaticTimer_t board_tx_buffer;
 
 uint32_t SystemCoreClock = 12000000;
 void (*irq_timer_32_0)(void) = {0};
+void (*irq_timer_32_1_capture)(void) = {0};
+void (*irq_timer_32_1_match)(void) = {0};
 
 bool core_isr_active(void)
 {
@@ -89,18 +89,17 @@ static void board_setup_uart_clock(void)
     LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_UART;
 }
 
-static void board_setup_dali_tx_clock(void)
+static void board_setup_dali_clock(void)
 {
-    // enable GPIO and CT32B0 blocks
-    LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_CT32B0;
-    LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_GPIO;
+    // enable GPIO, CT32B0 and CT32B1 blocks
+    LPC_SYSCON->SYSAHBCLKCTRL |= (SYSAHBCLKCTRL_CT32B0|SYSAHBCLKCTRL_CT32B1|SYSAHBCLKCTRL_GPIO);
 }
 
 static void board_setup_clocking(void)
 {
     board_setup_main_clock();
     board_setup_uart_clock();
-    board_setup_dali_tx_clock();
+    board_setup_dali_clock();
 }
 
 static void board_setup_pins(void)
@@ -121,11 +120,6 @@ void board_reset_led(enum board_led id)
     if (id == LED_DALI) {
         LPC_GPIO3->DATA |= (1U << 5U);
     }
-}
-
-bool board_get_dali_rx(void)
-{
-    return false;
 }
 
 void board_dali_tx_set(bool state)
@@ -160,10 +154,10 @@ void board_dali_tx_timer_next(uint32_t count, enum board_toggle toggle)
 
 void board_dali_tx_timer_setup(uint32_t count)
 {
-    LPC_TMR32B0->TCR = 2;
+    LPC_TMR32B0->TCR = TMR32B0TCR_CRST;
     board_dali_tx_timer_stop();
     board_dali_tx_timer_next(count,NOTHING);
-    // set base rate
+    // set prescaler to base rate
     LPC_TMR32B0->PR = (BOARD_AHB_CLOCK / DALI_TIMER_RATE_HZ) - 1;
     // set timer mode
     LPC_TMR32B0->CTCR = 0;
@@ -173,14 +167,14 @@ void board_dali_tx_timer_setup(uint32_t count)
     LPC_TMR32B0->EMR = TMR32B0EMR_EM3 | (TMR32B0EMR_EMC3_MASK & (3 << TMR32B0EMR_EMC3_SHIFT));
     // outputs are controlled by EMx
     LPC_TMR32B0->PWMC = 0;
-    // pin function: CT32B0_MAT2
-    // function mode: no pull resistors
+    // pin function: CT32B0_MAT3
+    // function mode: no pull up/down resistors
     // hysteresis disabled
     // standard gpio
     LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (3 << IOCON_R_PIO0_11_FUNC_SHIFT))
                          | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT));
     // start timer
-    LPC_TMR32B0->TCR = 1;
+    LPC_TMR32B0->TCR = TMR32B0TCR_CEN;
 }
 
 void TIMER32_0_IRQHandler(void)
@@ -198,12 +192,84 @@ void board_dali_tx_set_callback(void (*isr)(void))
     irq_timer_32_0 = isr;
 }
 
+void TIMER32_1_IRQHandler(void)
+{
+    if (LPC_TMR32B1->IR & TMR32B0IR_CR0_INTERRUPT) {
+        if (irq_timer_32_1_capture) {
+            irq_timer_32_1_capture();
+        }
+        LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
+    }
+    if (LPC_TMR32B1->IR & TMR32B0IR_MR0_INTERRUPT) {
+        if (irq_timer_32_1_match) {
+            irq_timer_32_1_match();
+        }
+        LPC_TMR32B1->IR = TMR32B0IR_MR0_INTERRUPT;
+    }
+}
+
+bool board_dali_rx_pin(void)
+{
+    return (LPC_GPIO1->DATA & (1 << 0));
+}
+
+void board_dali_rx_set_capture_callback(void (*isr)(void))
+{
+    irq_timer_32_1_capture = isr;
+}
+
+void board_dali_rx_set_match_callback(void (*isr)(void))
+{
+    irq_timer_32_1_match = isr;
+}
+
+uint32_t board_dali_rx_get_count(void)
+{
+    return LPC_TMR32B1->CR0;
+}
+
+void board_dali_rx_set_match(uint32_t match)
+{
+    LPC_TMR32B1->MR0 = match;
+}
+
+void board_dali_rx_match_irq(bool enable)
+{
+    if (enable) {
+        LPC_TMR32B1->MCR = (TMR32B0MCR_MR0I);
+    }
+    else {
+        LPC_TMR32B1->MCR = 0;
+    }
+}
+
+void board_dali_rx_timer_setup(void)
+{
+    LPC_TMR32B1->TCR = TMR32B0TCR_CRST;
+    // set prescaler to base rate
+    LPC_TMR32B1->PR = (BOARD_AHB_CLOCK / DALI_TIMER_RATE_HZ) - 1;
+    // set timer mode
+    LPC_TMR32B1->CTCR = 0;
+    // capture both edges, trigger IRQ
+    LPC_TMR32B1->CCR = (TMR32B0CCR_CAP0FE|TMR32B0CCR_CAP0RE|TMR32B0CCR_CAP0I);
+    board_dali_rx_match_irq(false);
+    // pin function: CT32B1_CAP0
+    // function mode: enable pull up resistor
+    // hysteresis disabled
+    // digital function mode, standard gpio
+    LPC_IOCON->R_PIO1_0 = (IOCON_R_PIO1_0_FUNC_MASK & (3 << IOCON_R_PIO1_0_FUNC_SHIFT)) | 
+                          (IOCON_R_PIO1_0_MODE_MASK & (2 << IOCON_R_PIO1_0_MODE_SHIFT)) |
+                          (IOCON_R_PIO1_0_ADMODE);
+    // start timer
+    LPC_TMR32B1->TCR = TMR32B0TCR_CEN;
+}
+
 static void board_heartbeat(TimerHandle_t NOUSE(dummy))
 {
     static uint32_t counter = 0;
 
     counter++;
-    if (board_get_dali_rx()) {
+    if (board_dali_rx_pin()==DALI_RX_IDLE) {
         if (counter & 1) {
             board_set_led(LED_DALI);
         } else {
@@ -258,6 +324,7 @@ void board_flash_tx(void)
 static void board_setup_IRQs(void)
 {
     NVIC_EnableIRQ(TIMER_32_0_IRQn);
+    NVIC_EnableIRQ(TIMER_32_1_IRQn);
     __enable_irq();
 }
 

@@ -7,6 +7,9 @@
 #include "board/board.h"
 #include "version.h"
 #include "log/log.h"
+#include "dali_101_lpc/dali_101.h"
+#include "serial.h"
+#include "frame_pump.h"
 
 int main(void)
 {
@@ -16,6 +19,10 @@ int main(void)
 
     log_init();
     board_init();
+    dali_tx_init();
+    dali_rx_init();
+    frame_pump_init();
+    serial_init();
 
     vTaskStartScheduler();
 }

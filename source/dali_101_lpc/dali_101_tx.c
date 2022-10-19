@@ -3,28 +3,29 @@
 
 #include "log/log.h"
 #include "board/board.h"
-#include "dali_101_tx.h"
+#include "dali_101.h"
 
 #define MAX_DATA_LENGTH  (32U)
 #define COUNT_ARRAY_SIZE (2U+MAX_DATA_LENGTH*2U+1U) // start bit, 32 data bits, 1 stop bit
 
-const struct _dali_timing {
+// see IEC 62386-101-2018 Table 16 - Transmitter bit timing
+static const struct _dali_timing {
     uint32_t half_bit_us;
     uint32_t full_bit_us;
     uint32_t stop_condition_us;
 } dali_timing = {
     .half_bit_us = 417,
     .full_bit_us = 833,
-    .stop_condition_us = 2400
+    .stop_condition_us = 2450
 };
 
 struct _dali_tx {
     uint32_t count_now;
     uint32_t count[COUNT_ARRAY_SIZE];
-    int8_t index_next;
-    int8_t index_max;
+    int_fast8_t index_next;
+    int_fast8_t index_max;
     bool state_now;
-} dali_tx;
+} dali_tx; // TODO rename to tx
 
 static void dali_reset_counts(void)
 {
@@ -100,7 +101,7 @@ static enum dali_tx_return dali_calculate_counts(const struct dali_tx_frame fram
     return dali_add_stop_condition();
 }
 
-static void dali_set_next_count(void)
+static void dali_tx_irq_callback(void)
 {
     if (dali_tx.index_next < dali_tx.index_max) {
         board_dali_tx_timer_next(dali_tx.count[dali_tx.index_next++], NOTHING);
@@ -133,7 +134,7 @@ enum dali_tx_return dali_transmit (const struct dali_tx_frame frame)
 
 void dali_tx_init(void)
 {
-    LOG_THIS_INVOCATION(LOG_LOW);
+    LOG_THIS_INVOCATION(LOG_FORCE);
     board_dali_tx_set(DALI_TX_IDLE);
-    board_dali_tx_set_callback(dali_set_next_count);
+    board_dali_tx_set_callback(dali_tx_irq_callback);
 }
