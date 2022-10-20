@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "FreeRTOS.h"   // TickType_t in dali_101.h
+
 #include "log/log.h"
 #include "board/board.h"
 #include "dali_101.h"
@@ -101,7 +103,7 @@ static enum dali_tx_return dali_calculate_counts(const struct dali_tx_frame fram
     return dali_add_stop_condition();
 }
 
-static void dali_tx_irq_callback(void)
+void dali_tx_irq_callback(void)
 {
     if (dali_tx.index_next < dali_tx.index_max) {
         board_dali_tx_timer_next(dali_tx.count[dali_tx.index_next++], NOTHING);
@@ -114,12 +116,7 @@ static void dali_tx_irq_callback(void)
     board_dali_tx_timer_stop();
 }
 
-void dali_destroy (void)
-{
-    // TODO
-}
-
-enum dali_tx_return dali_transmit (const struct dali_tx_frame frame)
+enum dali_tx_return dali_101_send (const struct dali_tx_frame frame)
 {
     LOG_PRINTF(LOG_LOW, "dali_transmit (0x%08x)", frame.data);
     enum dali_tx_return rc = dali_calculate_counts(frame);
@@ -130,11 +127,4 @@ enum dali_tx_return dali_transmit (const struct dali_tx_frame frame)
     }
     board_dali_tx_timer_setup(dali_tx.count[dali_tx.index_next++]);
     return rc;
-}
-
-void dali_tx_init(void)
-{
-    LOG_THIS_INVOCATION(LOG_FORCE);
-    board_dali_tx_set(DALI_TX_IDLE);
-    board_dali_tx_set_callback(dali_tx_irq_callback);
 }

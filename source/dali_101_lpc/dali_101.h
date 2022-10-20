@@ -46,8 +46,6 @@ struct dali_tx_frame {
     enum dali_tx_priority priority;
 };
 
-void dali_destroy (void);
-void dali_rx_set_callback(void (*callback)(struct dali_rx_frame));
-enum dali_tx_return dali_transmit (const struct dali_tx_frame frame);
-void dali_tx_init(void);
-void dali_rx_init(void);
+void dali_101_init(void);
+enum dali_tx_return dali_101_send (const struct dali_tx_frame frame);
+bool dali_101_get(struct dali_rx_frame* frame, TickType_t wait);

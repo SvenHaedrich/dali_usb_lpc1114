@@ -4,18 +4,21 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
 
 #include "log/log.h"
 #include "board/board.h"
 #include "dali_101.h"
 
 #define MAX_DATA_LENGTH (32U)
-#define COUNT_ARRAY_SIZE (2U+MAX_DATA_LENGTH*2U+1U) // start bit, 32 data bits, 1 stop bit
+
 #define DALI_RX_TASK_STACKSIZE (configMINIMAL_STACK_SIZE)
 #define DALI_RX_PRIORITY (4U)
 
 #define NOTIFY_CAPTURE (0x01)
 #define NOTIFY_MATCH   (0x02)
+
+#define QUEUE_SIZE (3U)
 
 enum rx_status {
     IDLE = 0,
@@ -53,10 +56,8 @@ struct _rx {
     enum rx_status status;
     struct dali_rx_frame frame;
     bool last_data_bit;
-    void (*process_finished_frame)(struct dali_rx_frame);
     TaskHandle_t task_handle;
-    StaticTask_t task_buffer;
-    StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
+    QueueHandle_t queue_handle;
 } rx = {0};
 
 static void irq_capture_callback(void)
@@ -179,8 +180,9 @@ static void finish_frame(void)
             break;
     }
 #endif
-    if (rx.process_finished_frame != 0) {
-        rx.process_finished_frame(rx.frame);
+    const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+    if (result == errQUEUE_FULL) {
+        LOG_ASSERT(false);
     }
 }
 
@@ -215,7 +217,7 @@ static void process_capture_notification(void)
             rx.status = check_inside_timing();
             break;
         default:
-            LOG_ASSERT(0);
+            LOG_ASSERT(false);
             break;
     }
     rx.last_edge_count = rx.edge_count;
@@ -258,17 +260,40 @@ __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void *dumm
     }
 }
 
-void dali_rx_set_callback(void (*callback)(struct dali_rx_frame))
+bool dali_101_get(struct dali_rx_frame* frame, TickType_t wait)
 {
-    rx.process_finished_frame = callback;
+    const BaseType_t rc = xQueueReceive(rx.queue_handle, frame, wait);
+    return (rc == pdPASS);
 }
 
-void dali_rx_init(void) {
-    LOG_THIS_INVOCATION(LOG_FORCE);
-    LOG_TEST(rx.task_handle = xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, 
-        NULL, DALI_RX_PRIORITY, rx.task_stack, &rx.task_buffer));
+extern void dali_tx_irq_callback(void); // defined in dali_101_tx.c
+void dali_tx_init(void)
+{
+    board_dali_tx_set(DALI_TX_IDLE);
+    board_dali_tx_set_callback(dali_tx_irq_callback);
+}
+
+static void dali_rx_init(void) 
+{
+   LOG_THIS_INVOCATION(LOG_FORCE);
+   static StaticTask_t task_buffer;
+   static StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
+   LOG_TEST(rx.task_handle = xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, 
+        NULL, DALI_RX_PRIORITY, task_stack, &task_buffer));
     
+    static uint8_t queue_storage [QUEUE_SIZE * sizeof(struct dali_rx_frame)];
+    static StaticQueue_t queue_buffer;
+    rx.queue_handle = xQueueCreateStatic(
+        QUEUE_SIZE, sizeof(struct dali_rx_frame), queue_storage, &queue_buffer);
+    LOG_ASSERT(rx.queue_handle);
+
     board_dali_rx_set_capture_callback(irq_capture_callback);
     board_dali_rx_set_match_callback(irq_match_callback);
     board_dali_rx_timer_setup();
+}
+
+void dali_101_init(void)
+{
+    dali_tx_init();
+    dali_rx_init();
 }

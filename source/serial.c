@@ -4,6 +4,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
 
 #include "lpc11xx.h"    // UART registers
 #include "bitfields.h"
@@ -11,7 +12,6 @@
 #include "dali_101_lpc/dali_101.h"
 #include "board/board.h"
 #include "log/log.h"
-#include "frame_pump.h"
 #include "main.h"
 #include "serial.h"
 
@@ -26,20 +26,15 @@
 #define SERIAL_CHAR_EOL 0x0d
 
 #define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
+#define SERIAL_QUEUE_LENGTH (3U)
+#define SERIAL_NOTIFY_PROCESSS (1U)
 
-#if !(DALI_101_MAJOR_VERSION == 2U)
-#error "expected DALI 101 major version 2."
-#endif
-#if !(DALI_101_MINOR_VERSION == 0U)
-#error "expected DALI 101 minor version 0."
-#endif
-
-#define NOTIFY_PROCESS_BUFFER (1U)
-
-static char serial_rx_buffer[SERIAL_BUFFER_SIZE];
-static uint8_t serial_buffer_index = 0;
-static volatile bool end_of_line = false;
-static TaskHandle_t serial_thread;
+struct _serial {
+    char rx_buffer[SERIAL_BUFFER_SIZE];
+    uint8_t buffer_index;
+    TaskHandle_t task_handle;
+    QueueHandle_t queue_handle;    
+} serial = {0}; 
 
 static void serial_print_help(void)
 {
@@ -66,10 +61,10 @@ static void serial_print_help(void)
     printf("     S1 10 ff00 - send BROADCAST OFF\r\n");
 }
 
-static void serial_buffer_reset(void)
+static void buffer_reset(void)
 {
-    serial_buffer_index = 0;
-    serial_rx_buffer[serial_buffer_index] = '\000';
+    serial.buffer_index = 0;
+    serial.rx_buffer[serial.buffer_index] = '\000';
 }
 
 static void send_command(bool send_twice)
@@ -79,7 +74,7 @@ static void send_command(bool send_twice)
     int priority;
     unsigned int length;
     unsigned long data;
-    sscanf(&serial_rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*) &priority, &length, &data);
+    sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*) &priority, &length, &data);
     const struct dali_tx_frame frame = { 
         .send_twice = send_twice,
         .repeat = 0,
@@ -87,7 +82,7 @@ static void send_command(bool send_twice)
         .length = length,
         .data = data 
     };
-    frame_pump_enqueue_tx_frame(frame);
+    xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
 
 static void send_repeated_command(void)
@@ -98,7 +93,7 @@ static void send_repeated_command(void)
     unsigned int length;
     unsigned int repeat;
     unsigned long data;
-    sscanf(&serial_rx_buffer[SERIAL_IDX_ARG],
+    sscanf(&serial.rx_buffer[SERIAL_IDX_ARG],
            "%d %x %x %lx",
            &priority,
            &repeat,
@@ -112,7 +107,7 @@ static void send_repeated_command(void)
             .length = length,
             .data = data 
         };
-        frame_pump_enqueue_tx_frame(frame);
+        xQueueSendToBack(serial.queue_handle, &frame, 0);
     }
 }
 
@@ -139,7 +134,7 @@ __attribute__((noreturn)) static void serial_worker_thread(__attribute__((unused
         const BaseType_t result = xTaskNotifyWait(pdFALSE, ULONG_MAX, &notifications, portMAX_DELAY);
         if (result == pdPASS) {
             board_flash_rx();
-            switch (serial_rx_buffer[SERIAL_IDX_CMD]) {
+            switch (serial.rx_buffer[SERIAL_IDX_CMD]) {
             case SERIAL_CMD_SINGLE:
                 send_command(false);
                 break;
@@ -158,7 +153,7 @@ __attribute__((noreturn)) static void serial_worker_thread(__attribute__((unused
                 serial_print_help();
                 break;
             }
-            serial_buffer_reset();
+            buffer_reset();
         }
     }
 }
@@ -172,25 +167,26 @@ void UART_IRQHandler(void)
         case SERIAL_CMD_SINGLE:
         case SERIAL_CMD_TWICE:
         case SERIAL_CMD_REPEAT:
-            serial_buffer_index = 0;
-            serial_rx_buffer[serial_buffer_index] = c;
+            serial.buffer_index = 0;
+            serial.rx_buffer[serial.buffer_index] = c;
             break;
         case SERIAL_CMD_SPECIAL:
         case SERIAL_CMD_HELP:
-            serial_buffer_index = 0;
-            serial_rx_buffer[serial_buffer_index++] = c;
-            serial_rx_buffer[serial_buffer_index] = '\000';
-            xTaskNotifyFromISR(serial_thread, NOTIFY_PROCESS_BUFFER, eSetBits, &higher_priority_woken);
+            serial.buffer_index = 0;
+            serial.rx_buffer[serial.buffer_index++] = c;
+            serial.rx_buffer[serial.buffer_index] = '\000';
+            xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
             break;
         case SERIAL_CHAR_EOL:
-            serial_rx_buffer[serial_buffer_index] = '\000';
-            xTaskNotifyFromISR(serial_thread, NOTIFY_PROCESS_BUFFER, eSetBits, &higher_priority_woken);
+            serial.rx_buffer[serial.buffer_index] = '\000';
+            xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
             break;
         default:
-            serial_rx_buffer[serial_buffer_index] = c;
+            serial.rx_buffer[serial.buffer_index] = c;
         }
-        if (serial_buffer_index <= (SERIAL_BUFFER_SIZE - 1))
-            serial_buffer_index++;
+        if (serial.buffer_index <= (SERIAL_BUFFER_SIZE - 1))
+            serial.buffer_index++;
+        portYIELD_FROM_ISR(higher_priority_woken);
     }
 }
 
@@ -204,14 +200,17 @@ void serial_init(void)
 {
     LOG_THIS_INVOCATION(LOG_FORCE);
 
-    static StaticTask_t buffer;
-    static StackType_t stack[SERIAL_TASK_STACKSIZE];
-    LOG_TEST(serial_thread = xTaskCreateStatic(serial_worker_thread,
-                               "UART",
-                               SERIAL_TASK_STACKSIZE,
-                               NULL,
-                               tskIDLE_PRIORITY + 1,
-                               stack,
-                               &buffer));
+    static StaticTask_t task_buffer;
+    static StackType_t task_stack[SERIAL_TASK_STACKSIZE];
+    serial.task_handle = xTaskCreateStatic(serial_worker_thread,
+        "SERIAL", SERIAL_TASK_STACKSIZE, NULL, tskIDLE_PRIORITY + 1, task_stack, &task_buffer);
+    LOG_ASSERT(serial.task_handle);
+
+    static uint8_t queue_storage [SERIAL_QUEUE_LENGTH * sizeof(struct dali_tx_frame)];
+    static StaticQueue_t queue_buffer;
+    serial.queue_handle = xQueueCreateStatic(
+        SERIAL_QUEUE_LENGTH, sizeof(struct dali_tx_frame), queue_storage, &queue_buffer);
+    LOG_ASSERT(serial.queue_handle);
+
     serial_initialize_uart_interrupt();
 }

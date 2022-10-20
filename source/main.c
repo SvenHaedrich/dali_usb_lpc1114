@@ -9,7 +9,13 @@
 #include "log/log.h"
 #include "dali_101_lpc/dali_101.h"
 #include "serial.h"
-#include "frame_pump.h"
+
+#if !(DALI_101_MAJOR_VERSION == 2U)
+#error "expected DALI 101 major version 2."
+#endif
+#if !(DALI_101_MINOR_VERSION == 0U)
+#error "expected DALI 101 minor version 0."
+#endif
 
 int main(void)
 {
@@ -19,9 +25,7 @@ int main(void)
 
     log_init();
     board_init();
-    dali_tx_init();
-    dali_rx_init();
-    frame_pump_init();
+    dali_101_init();
     serial_init();
 
     vTaskStartScheduler();
