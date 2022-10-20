@@ -13,6 +13,7 @@
 #include "board/board.h"
 #include "log/log.h"
 #include "main.h"
+#include "version.h"
 #include "serial.h"
 
 #define SERIAL_BUFFER_SIZE 20
@@ -26,6 +27,7 @@
 #define SERIAL_CHAR_EOL 0x0d
 
 #define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
+#define SERIAL_PRIORITY (tskIDLE_PRIORITY + 2)
 #define SERIAL_QUEUE_LENGTH (3U)
 #define SERIAL_NOTIFY_PROCESSS (1U)
 
@@ -36,11 +38,17 @@ struct _serial {
     QueueHandle_t queue_handle;    
 } serial = {0}; 
 
+void serial_print_head(void)
+{
+    printf("DALI USB interface - SevenLab 2022\r\n");
+    printf("Version %d.%d.%d \r\n", MAJOR_VERSION_SOFTWARE, MINOR_VERSION_SOFTWARE, BUGFIX_VERSION_SOFTWARE);
+    printf(LOG_BUILD_VERSION);
+    printf("\r\n");
+}
+
 static void serial_print_help(void)
 {
-    LOG_THIS_INVOCATION(LOG_UART);
-
-    printf("DALI USB Sevenlab\r\n\r\n");
+    serial_print_head();
     printf("OUTPUT: {ttttttttEss dddddddd}\r\n");
     printf("where\r\n");
     printf("       tttttttt - timestamp, each tick equals 1 ms, hex representation with fixed length of 8 digits\r\n");
@@ -125,7 +133,7 @@ void serial_print_frame(struct dali_rx_frame frame)
 //     printf("{%08lx*%02x %08lx}\r\n", frame.timestamp, frame.error_code, data);
 // }
 
-__attribute__((noreturn)) static void serial_worker_thread(__attribute__((unused))void* dummy)
+__attribute__((noreturn)) static void serial_task(__attribute__((unused))void* dummy)
 {
     LOG_THIS_INVOCATION(LOG_FORCE);
 
@@ -160,7 +168,7 @@ __attribute__((noreturn)) static void serial_worker_thread(__attribute__((unused
 
 void UART_IRQHandler(void)
 {
-    if (((LPC_UART->IIR & U0IIR_INTID_MASK)>>U0IIR_INTID_SHIFT)==1U) {
+    if (LPC_UART->IIR & (1U<<2U)) {
         BaseType_t higher_priority_woken = pdFALSE;
         const char c = LPC_UART->RBR;
         switch (c) {
@@ -190,6 +198,12 @@ void UART_IRQHandler(void)
     }
 }
 
+bool serial_get(struct dali_tx_frame* frame, TickType_t wait)
+{
+    const BaseType_t rc = xQueueReceive(serial.queue_handle, frame, wait);
+    return (rc == pdPASS);
+}
+
 static void serial_initialize_uart_interrupt(void)
 {
     LPC_UART->IER |= 0x01; 
@@ -202,8 +216,8 @@ void serial_init(void)
 
     static StaticTask_t task_buffer;
     static StackType_t task_stack[SERIAL_TASK_STACKSIZE];
-    serial.task_handle = xTaskCreateStatic(serial_worker_thread,
-        "SERIAL", SERIAL_TASK_STACKSIZE, NULL, tskIDLE_PRIORITY + 1, task_stack, &task_buffer);
+    serial.task_handle = xTaskCreateStatic(serial_task,
+        "SERIAL", SERIAL_TASK_STACKSIZE, NULL, SERIAL_PRIORITY, task_stack, &task_buffer);
     LOG_ASSERT(serial.task_handle);
 
     static uint8_t queue_storage [SERIAL_QUEUE_LENGTH * sizeof(struct dali_tx_frame)];

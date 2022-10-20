@@ -4,8 +4,8 @@ ENTRY(Reset_Handler)
 /* === stack and heap definitions =============== */
 _estack = 0x10002000;	/* end of "RAM" Ram type memory */
 
-_Min_Heap_Size = 0x100;	/* required amount of heap  */
-_Min_Stack_Size = 0x100;	/* required amount of stack */
+_Min_Heap_Size = 0x180;	/* required amount of heap  */
+_Min_Stack_Size = 0x180;	/* required amount of stack */
 
 
 /* === memory layout ============================ */

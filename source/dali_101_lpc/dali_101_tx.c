@@ -83,8 +83,6 @@ static enum dali_tx_return dali_add_stop_condition(void)
 
 static enum dali_tx_return dali_calculate_counts(const struct dali_tx_frame frame)
 {
-    LOG_THIS_INVOCATION(LOG_LOW);
-
     if (frame.length > MAX_DATA_LENGTH) {
         return -RETURN_BAD_ARGUMENT;
     }
@@ -120,7 +118,6 @@ enum dali_tx_return dali_101_send (const struct dali_tx_frame frame)
 {
     LOG_PRINTF(LOG_LOW, "dali_transmit (0x%08x)", frame.data);
     enum dali_tx_return rc = dali_calculate_counts(frame);
-    LOG_PRINTF(LOG_LOW, "  count entries used: %d dec", (dali_tx.index_max+1));
     if (rc != RETURN_OK) {
         LOG_PRINTF(LOG_LOW, "  conversion failed: %d", rc);
         return rc;

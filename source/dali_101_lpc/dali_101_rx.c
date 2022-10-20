@@ -12,7 +12,7 @@
 
 #define MAX_DATA_LENGTH (32U)
 
-#define DALI_RX_TASK_STACKSIZE (configMINIMAL_STACK_SIZE)
+#define DALI_RX_TASK_STACKSIZE (2*configMINIMAL_STACK_SIZE)
 #define DALI_RX_PRIORITY (4U)
 
 #define NOTIFY_CAPTURE (0x01)
@@ -275,7 +275,6 @@ void dali_tx_init(void)
 
 static void dali_rx_init(void) 
 {
-   LOG_THIS_INVOCATION(LOG_FORCE);
    static StaticTask_t task_buffer;
    static StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
    LOG_TEST(rx.task_handle = xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, 
@@ -294,6 +293,8 @@ static void dali_rx_init(void)
 
 void dali_101_init(void)
 {
+    LOG_THIS_INVOCATION(LOG_FORCE);
+
     dali_tx_init();
     dali_rx_init();
 }

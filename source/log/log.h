@@ -7,6 +7,10 @@
 #define NOUSE(x) NOUSE_##x
 #endif
 
+#ifndef SOURCE_PATH_SIZE
+#define SOURCE_PATH_SIZE (0)
+#endif
+
 #define NELEMENTS(x) (sizeof(x) / sizeof(x[0]))
 
 #define LOG_FORCE 0
