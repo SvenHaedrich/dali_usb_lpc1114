@@ -31,8 +31,8 @@ cmake --build build --clean-first
 
 Release build
 ```bash
-cmake -B build-release -S . -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release --clean-first
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+cmake --build build --clean-first
 ```
 
 If your arm-none-eabi gcc is not in your path, add the following to your initial cmake call:
