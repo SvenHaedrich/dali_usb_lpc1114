@@ -22,8 +22,11 @@
 #define SERIAL_CMD_SINGLE 'S'
 #define SERIAL_CMD_TWICE 'T'
 #define SERIAL_CMD_REPEAT 'R'
-#define SERIAL_CMD_SPECIAL '!'
+#define SERIAL_CMD_STATUS '!'
 #define SERIAL_CMD_HELP '?'
+#define SERIAL_CMD_START_SEQ 'Q'
+#define SERIAL_CMD_NEXT_SEQ 'N'
+#define SERIAL_CMD_EXECUTE_SEQ 'X'
 #define SERIAL_CHAR_EOL 0x0d
 
 #define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
@@ -48,6 +51,8 @@ void serial_print_head(void)
 
 static void serial_print_help(void)
 {
+    LOG_THIS_INVOCATION(LOG_UART);
+
     serial_print_head();
     printf("OUTPUT: {ttttttttEss dddddddd}\r\n");
     printf("where\r\n");
@@ -55,11 +60,11 @@ static void serial_print_help(void)
     printf("       E        - either '-' state ok, or '*' error detected\r\n");
     printf("       ss       - number of bits received, hex representation with fixed length of 2 digits\r\n");
     printf("       dddddddd - data received, hex representation with fixed length of 8 digits\r\n");
+    printf("\r\n");
     printf("INPUT: Sp l d <cr>   - send single DALI frame\r\n");
     printf("       Tp l d <cr>   - send DALI frame twice\r\n");
     printf("       Rp r l d <cr> - repeat DALI frame\r\n");
-    printf("       !             - print information\r\n");
-    printf("       ?             - show help text\r\n");
+    printf("       ?             - show this text\r\n");
     printf("where\r\n");
     printf("      p - frame priority 0=backward frame..6=priority 5\r\n");
     printf("      l - number of data bits to send 1..0x20 in hexadecimal representation\r\n");
@@ -121,17 +126,19 @@ static void send_repeated_command(void)
 
 void serial_print_frame(struct dali_rx_frame frame)
 {
-    printf("{%08lx-%02x %08lx}\r\n", frame.timestamp, frame.length, frame.data);
+    if (frame.error_code==DALI_OK) {
+        printf("{%08lx-%02x %08lx}\r\n", frame.timestamp, frame.length, frame.data);
+    }
+    else {
+        const uint32_t data = ((frame.length) & 0xff) | ((frame.error_timer_usec & 0xfffff) << 8);
+        printf("{%08lx*%02x %08lx}\r\n", frame.timestamp, frame.error_code, data);
+    }
 }
 
-// static void serial_print_error(struct dali_rx_frame frame)
-// {
-//     uint32_t data = 0;
-
-//     data |= (frame.length) & 0xff;
-//     data |= (frame.error_timer_usec & 0xfffff) << 8;
-//     printf("{%08lx*%02x %08lx}\r\n", frame.timestamp, frame.error_code, data);
-// }
+void serial_print_status_frame(enum dali_errors error)
+{
+    printf("{%08lx*%02x 00000000}\r\n", xTaskGetTickCount(), error);
+}
 
 __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* dummy)
 {
@@ -152,14 +159,15 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* d
             case SERIAL_CMD_REPEAT:
                 send_repeated_command();
                 break;
-            case SERIAL_CMD_SPECIAL:
+            case SERIAL_CMD_STATUS:
                 board_flash_tx();
-//                log_show_information();
+                serial_print_status_frame(dali_101_get_error());
                 break;
             case SERIAL_CMD_HELP:
                 board_flash_tx();
                 serial_print_help();
                 break;
+            // TODO add sequence commands
             }
             buffer_reset();
         }
@@ -175,10 +183,13 @@ void UART_IRQHandler(void)
         case SERIAL_CMD_SINGLE:
         case SERIAL_CMD_TWICE:
         case SERIAL_CMD_REPEAT:
+        case SERIAL_CMD_NEXT_SEQ:
             serial.buffer_index = 0;
             serial.rx_buffer[serial.buffer_index] = c;
             break;
-        case SERIAL_CMD_SPECIAL:
+        case SERIAL_CMD_START_SEQ:
+        case SERIAL_CMD_EXECUTE_SEQ:
+        case SERIAL_CMD_STATUS:
         case SERIAL_CMD_HELP:
             serial.buffer_index = 0;
             serial.rx_buffer[serial.buffer_index++] = c;
