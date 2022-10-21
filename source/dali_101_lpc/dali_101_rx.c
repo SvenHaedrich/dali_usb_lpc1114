@@ -26,8 +26,8 @@ enum rx_status {
     START_BIT_INSIDE,
     DATA_BIT_START,
     DATA_BIT_INSIDE,
-    WAIT,
-    LOW
+    LOW,
+    FAILURE
 };
 
 // see IEC 62386-101-2018 Table 18, Table 19 - Transmitter bit timing
@@ -196,7 +196,7 @@ static void process_capture_notification(void)
 {
     switch (rx.status) {
         case IDLE:
-            if (board_dali_rx_pin()) {
+            if (board_dali_rx_pin()==DALI_RX_ACTIVE) {
                 rx.status = START_BIT_START;
                 rx.last_data_bit = true;
                 rx.frame.timestamp = xTaskGetTickCount();
@@ -289,6 +289,28 @@ static void dali_rx_init(void)
     board_dali_rx_set_capture_callback(irq_capture_callback);
     board_dali_rx_set_match_callback(irq_match_callback);
     board_dali_rx_timer_setup();
+
+    if (board_dali_rx_pin()==DALI_RX_IDLE) {
+        rx.status = IDLE;
+    }
+    else {
+        rx.status = FAILURE;
+    }
+}
+
+enum dali_errors dali_101_get_error(void)
+{
+    if (rx.frame.error_code) {
+        return rx.frame.error_code;
+    }
+    switch (rx.status) {
+        default:
+        case IDLE:
+            return DALI_OK;
+        case FAILURE:
+            return DALI_ERROR_SYSTEM_FAILURE;
+    }
+    return DALI_OK;
 }
 
 void dali_101_init(void)

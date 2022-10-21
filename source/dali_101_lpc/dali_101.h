@@ -18,7 +18,7 @@ enum dali_tx_return {
     RETURN_BAD_ARGUMENT = 2,
 };
 
-enum dali_errors {
+enum dali_errors {  // TODO rename to dali_error
     DALI_OK = 0,
     DALI_ERROR_RECEIVE_START_TIMING = 1,
     DALI_ERROR_RECEIVE_DATA_TIMING = 2,
@@ -49,3 +49,7 @@ struct dali_tx_frame {
 void dali_101_init(void);
 enum dali_tx_return dali_101_send (const struct dali_tx_frame frame);
 bool dali_101_get(struct dali_rx_frame* frame, TickType_t wait);
+enum dali_errors dali_101_get_error(void);
+void dali_101_sequence_start(void);
+bool dali_101_sequence_next(uint32_t delay_us);
+void dali_101_sequence_execute(void);

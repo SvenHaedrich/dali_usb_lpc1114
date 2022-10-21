@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include "log.h"
-
 #ifndef NDEBUG
 #include "SEGGER_RTT.h"
 #define LOG_FUNC(fmt, ...) SEGGER_RTT_printf(0, fmt, ##__VA_ARGS__)
@@ -12,39 +10,16 @@
 
 #ifndef NDEBUG
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdatomic.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
-#include "semphr.h"
-#include "board/board.h"
 
-// static SemaphoreHandle_t log_mutex;
-// static StaticSemaphore_t log_mutex_buffer;
+#include "board/board.h"
+#include "log.h"
+
 static uint32_t active_topics = 0;
 static char* topic_names[] = { "HDRV", "UART", "INIT" };
-
-static void log_lock(void)
-{
-    // if (taskSCHEDULER_RUNNING == xTaskGetSchedulerState()) {
-    //     if (core_isr_active()) {
-    //         xSemaphoreTakeFromISR(log_mutex, NULL);
-    //     } else {
-    //         xSemaphoreTake(log_mutex, portMAX_DELAY);
-    //     }
-    // }
-}
-
-static void log_unlock(void)
-{
-    // if (taskSCHEDULER_RUNNING == xTaskGetSchedulerState()) {
-    //     if (core_isr_active()) {
-    //         xSemaphoreGiveFromISR(log_mutex, NULL);
-    //     } else {
-    //         xSemaphoreGive(log_mutex);
-    //     }
-    // }
-}
 
 static void log_print_time(void)
 {
@@ -71,11 +46,9 @@ void log_set_active_topics(uint32_t new_topics)
 void log_msg(uint32_t topic, const char* s)
 {
     if (!topic || (topic & active_topics)) {
-        log_lock();
         log_print_time();
         log_print_topic(topic);
         LOG_FUNC("%s\r\n", s);
-        log_unlock();
     }
 }
 
@@ -90,11 +63,9 @@ int log_printf(uint32_t topic, const char* format, ...)
         n = vsprintf(convert, format, args);
         va_end(args);
 
-        log_lock();
         log_print_time();
         log_print_topic(topic);
         LOG_FUNC("%s\r\n", convert);
-        log_unlock();
     }
     return n;
 }
@@ -107,5 +78,4 @@ void log_init(void)
     log_set_active_topics(LOG_HDRV | LOG_LOW);
     LOG_THIS_INVOCATION(LOG_FORCE);
 #endif
-    // LOG_TEST(log_mutex = xSemaphoreCreateMutexStatic(&log_mutex_buffer));
 }

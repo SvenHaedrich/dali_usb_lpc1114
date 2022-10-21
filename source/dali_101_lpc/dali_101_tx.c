@@ -125,3 +125,19 @@ enum dali_tx_return dali_101_send (const struct dali_tx_frame frame)
     board_dali_tx_timer_setup(dali_tx.count[dali_tx.index_next++]);
     return rc;
 }
+
+void dali_101_sequence_start(void)
+{
+    // TODO implement dali_101_sequence_start
+}
+
+bool dali_101_sequence_next(uint32_t delay_us)
+{
+    // TODO implement dali_101_sequence_next
+    return false;
+}
+
+void dali_101_sequence_execute(void)
+{
+    // TODO implement dali_101_sequence_execute
+}
