@@ -7,6 +7,10 @@
 #include "board/board.h"
 #include "dali_101.h"
 
+// TODO implement send twice
+// TODO implement send repeat
+// TODO priority delay
+
 #define MAX_DATA_LENGTH  (32U)
 #define COUNT_ARRAY_SIZE (2U+MAX_DATA_LENGTH*2U+1U) // start bit, 32 data bits, 1 stop bit
 
