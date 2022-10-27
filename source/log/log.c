@@ -19,7 +19,7 @@
 #include "log.h"
 
 static uint32_t active_topics = 0;
-static char* topic_names[] = { "HDRV", "UART", "INIT" };
+static char* topic_names[] = { "UART", "INIT", "LOW ", "TASK" };
 
 static void log_print_time(void)
 {
@@ -75,7 +75,7 @@ void log_init(void)
 {
 #ifndef NDEBUG
     SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
-    log_set_active_topics(LOG_HDRV | LOG_LOW);
-    LOG_THIS_INVOCATION(LOG_FORCE);
+    log_set_active_topics(LOG_LOW);
+    LOG_THIS_INVOCATION(LOG_INIT);
 #endif
 }

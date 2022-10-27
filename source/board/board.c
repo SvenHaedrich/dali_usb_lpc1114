@@ -27,7 +27,8 @@ static StaticTimer_t board_heartbeat_buffer;
 uint32_t SystemCoreClock = 12000000;
 void (*irq_timer_32_0)(void) = {0};
 void (*irq_timer_32_1_capture)(void) = {0};
-void (*irq_timer_32_1_match)(void) = {0};
+void (*irq_timer_32_1_stopbit)(void) = {0};
+void (*irq_timer_32_1_period)(void) = {0};
 
 bool core_isr_active(void)
 {
@@ -201,10 +202,16 @@ void TIMER32_1_IRQHandler(void)
         LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
     }
     if (LPC_TMR32B1->IR & TMR32B0IR_MR0_INTERRUPT) {
-        if (irq_timer_32_1_match) {
-            irq_timer_32_1_match();
+        if (irq_timer_32_1_stopbit) {
+            irq_timer_32_1_stopbit();
         }
         LPC_TMR32B1->IR = TMR32B0IR_MR0_INTERRUPT;
+    }
+    if (LPC_TMR32B1->IR & TMR32B0IR_MR1_INTERRUPT) {
+        if (irq_timer_32_1_period) {
+            irq_timer_32_1_period();
+        }
+        LPC_TMR32B1->IR = TMR32B0IR_MR1_INTERRUPT;
     }
 }
 
@@ -213,35 +220,61 @@ bool board_dali_rx_pin(void)
     return (LPC_GPIO1->DATA & (1 << 0));
 }
 
+uint32_t board_dali_rx_get_capture(void)
+{
+    return LPC_TMR32B1->CR0;
+}
+
+uint32_t board_dali_rx_get_count(void)
+{
+    return LPC_TMR32B1->TC;
+}
+
 void board_dali_rx_set_capture_callback(void (*isr)(void))
 {
     irq_timer_32_1_capture = isr;
 }
 
-void board_dali_rx_set_match_callback(void (*isr)(void))
+void board_dali_rx_set_stopbit_match_callback(void (*isr)(void))
 {
-    irq_timer_32_1_match = isr;
+    irq_timer_32_1_stopbit = isr;
 }
 
-uint32_t board_dali_rx_get_count(void)
+void board_dali_rx_set_period_match_callback(void (*isr)(void))
 {
-    return LPC_TMR32B1->CR0;
+    irq_timer_32_1_period = isr;
 }
 
-void board_dali_rx_set_match(uint32_t match)
+void board_dali_rx_set_stopbit_match(uint32_t match_count)
 {
-    LPC_TMR32B1->MR0 = match;
+    LPC_TMR32B1->MR0 = match_count;
 }
 
-void board_dali_rx_match_irq(bool enable)
+void board_dali_rx_set_period_match(uint32_t match_count)
+{
+    LPC_TMR32B1->MR1 = match_count;
+}
+
+void board_dali_rx_stopbit_match_enable(bool enable)
 {
     if (enable) {
-        LPC_TMR32B1->MCR = (TMR32B0MCR_MR0I);
+        LPC_TMR32B1->MCR |= (TMR32B0MCR_MR0I);
     }
     else {
-        LPC_TMR32B1->MCR = 0;
+        LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR0I);
     }
 }
+
+void board_dali_rx_period_match_enable(bool enable)
+{
+    if (enable) {
+        LPC_TMR32B1->MCR |= (TMR32B0MCR_MR1I);
+    }
+    else {
+        LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR1I);
+    }
+}
+
 
 void board_dali_rx_timer_setup(void)
 {
@@ -252,7 +285,7 @@ void board_dali_rx_timer_setup(void)
     LPC_TMR32B1->CTCR = 0;
     // capture both edges, trigger IRQ
     LPC_TMR32B1->CCR = (TMR32B0CCR_CAP0FE|TMR32B0CCR_CAP0RE|TMR32B0CCR_CAP0I);
-    board_dali_rx_match_irq(false);
+    board_dali_rx_stopbit_match_enable(false);
     // pin function: CT32B1_CAP0
     // function mode: enable pull up resistor
     // hysteresis disabled
@@ -330,7 +363,7 @@ static void board_setup_IRQs(void)
 
 void board_init(void)
 {
-    LOG_THIS_INVOCATION(LOG_FORCE);
+    LOG_THIS_INVOCATION(LOG_INIT);
 
     LOG_TEST(board_heartbeat_timer_id = xTimerCreateStatic(
                  "heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer));

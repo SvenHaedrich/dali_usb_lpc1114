@@ -22,7 +22,7 @@
 
 __attribute__((noreturn)) static void main_task(__attribute__((unused))void* dummy)
 {
-    LOG_THIS_INVOCATION(LOG_FORCE);
+    LOG_THIS_INVOCATION(LOG_TASK);
     
     struct dali_rx_frame rx_frame;
     struct dali_tx_frame tx_frame;
@@ -30,8 +30,10 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused))void* dum
         if (dali_101_get(&rx_frame, 0)) {
             serial_print_frame(rx_frame);
         }
-        if (serial_get(&tx_frame, 0)) {
-            dali_101_send(tx_frame);
+        if (dali_101_send_is_ready()) {
+            if (serial_get(&tx_frame, 0)) {
+                dali_101_send(tx_frame);
+            }
         }
         vTaskDelay((2/portTICK_PERIOD_MS));
     }
@@ -41,6 +43,7 @@ int main(void)
 {
     serial_print_head();
     log_init();
+    LOG_PRINTF(LOG_FORCE, "dali_lpx_lpc1114 started");
     board_init();
     dali_101_init();
     serial_init();

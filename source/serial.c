@@ -30,7 +30,7 @@
 #define SERIAL_CHAR_EOL 0x0d
 
 #define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
-#define SERIAL_PRIORITY (tskIDLE_PRIORITY + 2)
+#define SERIAL_PRIORITY (tskIDLE_PRIORITY + 2U)
 #define SERIAL_QUEUE_LENGTH (3U)
 #define SERIAL_NOTIFY_PROCESSS (1U)
 
@@ -49,7 +49,7 @@ void serial_print_head(void)
     printf("\r\n");
 }
 
-static void serial_print_help(void)
+static void print_help(void)
 {
     LOG_THIS_INVOCATION(LOG_UART);
 
@@ -74,10 +74,27 @@ static void serial_print_help(void)
     printf("     S1 10 ff00 - send BROADCAST OFF\r\n");
 }
 
+void serial_print_frame(const struct dali_rx_frame frame)
+{
+    const char c = frame.is_status ? '*' : '-';
+    printf("{%08lx%c%02x %08lx}\r\n", frame.timestamp, c, frame.length, frame.data);
+}
+
 static void buffer_reset(void)
 {
     serial.buffer_index = 0;
     serial.rx_buffer[serial.buffer_index] = '\000';
+}
+
+static void print_parameter_error (void)
+{
+    const struct dali_rx_frame frame = {
+        .is_status = true,
+        .timestamp = xTaskGetTickCount(),
+        .length = DALI_ERROR_BAD_COMMAND,
+        .data = 0
+    };
+    serial_print_frame(frame);
 }
 
 static void send_command(bool send_twice)
@@ -87,11 +104,13 @@ static void send_command(bool send_twice)
     int priority;
     unsigned int length;
     unsigned long data;
-    sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*) &priority, &length, &data);
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*) &priority, &length, &data);
+    if (n != 3)  {
+        print_parameter_error();
+    }
     const struct dali_tx_frame frame = { 
-        .send_twice = send_twice,
-        .repeat = 0,
-        .priority = priority,
+        .repeat = send_twice ? 1 : 0,
+        .priority = send_twice ? DALI_PRIORITY_SEND_TWICE : priority,
         .length = length,
         .data = data 
     };
@@ -106,15 +125,17 @@ static void send_repeated_command(void)
     unsigned int length;
     unsigned int repeat;
     unsigned long data;
-    sscanf(&serial.rx_buffer[SERIAL_IDX_ARG],
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG],
            "%d %x %x %lx",
            &priority,
            &repeat,
            &length,
            &data);
+    if (n != 4) {
+        print_parameter_error();
+    }
     if (repeat) {
         const struct dali_tx_frame frame = { 
-            .send_twice = false,
             .repeat = repeat,
             .priority = priority,
             .length = length,
@@ -124,25 +145,21 @@ static void send_repeated_command(void)
     }
 }
 
-void serial_print_frame(struct dali_rx_frame frame)
+static void next_sequence(void)
 {
-    if (frame.error_code==DALI_OK) {
-        printf("{%08lx-%02x %08lx}\r\n", frame.timestamp, frame.length, frame.data);
-    }
-    else {
-        const uint32_t data = ((frame.length) & 0xff) | ((frame.error_timer_usec & 0xfffff) << 8);
-        printf("{%08lx*%02x %08lx}\r\n", frame.timestamp, frame.error_code, data);
-    }
-}
+    LOG_THIS_INVOCATION(LOG_UART);
 
-void serial_print_status_frame(enum dali_errors error)
-{
-    printf("{%08lx*%02x 00000000}\r\n", xTaskGetTickCount(), error);
+    unsigned long period_us;
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%lx", &period_us);
+    if (n != 1) {
+        print_parameter_error();
+    }
+    dali_101_sequence_next(period_us);
 }
 
 __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* dummy)
 {
-    LOG_THIS_INVOCATION(LOG_FORCE);
+    LOG_THIS_INVOCATION(LOG_TASK);
 
     while (true) {
         uint32_t notifications;
@@ -161,13 +178,24 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* d
                 break;
             case SERIAL_CMD_STATUS:
                 board_flash_tx();
-                serial_print_status_frame(dali_101_get_error());
+                dali_101_request_status_frame();
                 break;
             case SERIAL_CMD_HELP:
                 board_flash_tx();
-                serial_print_help();
+                print_help();
                 break;
-            // TODO add sequence commands
+            case SERIAL_CMD_START_SEQ:
+                board_flash_tx();
+                dali_101_sequence_start();
+                break;
+            case SERIAL_CMD_NEXT_SEQ:
+                board_flash_tx();
+                next_sequence();
+                break;
+            case SERIAL_CMD_EXECUTE_SEQ:
+                board_flash_tx();
+                dali_101_sequence_execute();
+                break;
             }
             buffer_reset();
         }
@@ -223,7 +251,7 @@ static void serial_initialize_uart_interrupt(void)
 
 void serial_init(void)
 {
-    LOG_THIS_INVOCATION(LOG_FORCE);
+    LOG_THIS_INVOCATION(LOG_INIT);
 
     static StaticTask_t task_buffer;
     static StackType_t task_stack[SERIAL_TASK_STACKSIZE];
