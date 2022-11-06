@@ -9,7 +9,7 @@ This version is for NXP LPC1114  microcontroller.
 
 ## Prerequisites
 
-* LPC1114FBD48
+* LPC1114FBD48/302
 * GCC cross compiler
 
 Get compiler

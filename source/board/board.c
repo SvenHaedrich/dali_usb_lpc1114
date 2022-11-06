@@ -17,12 +17,12 @@
 #define DALI_TIMER_RATE_HZ (1000000U)
 
 static TimerHandle_t board_heartbeat_timer_id;
-// static TimerHandle_t board_rx_timer_id;
-// static TimerHandle_t board_tx_timer_id;
+static TimerHandle_t board_rx_timer_id;
+static TimerHandle_t board_tx_timer_id;
 
 static StaticTimer_t board_heartbeat_buffer;
-// static StaticTimer_t board_rx_buffer;
-// static StaticTimer_t board_tx_buffer;
+static StaticTimer_t board_rx_buffer;
+static StaticTimer_t board_tx_buffer;
 
 uint32_t SystemCoreClock = 12000000;
 void (*irq_timer_32_0)(void) = {0};
@@ -105,33 +105,42 @@ static void board_setup_clocking(void)
 
 static void board_setup_pins(void)
 {
-    LPC_GPIO3->DIR |= (1U << 5U);
+    LPC_GPIO2->DIR |= (1U << 4U) |(1U << 5U) | (1U << 6U);
     LPC_GPIO0->DIR |= (1U << 1U);
-}
-
-void board_set_led(enum board_led id)
-{
-    if (id == LED_DALI) {
-        LPC_GPIO3->DATA &= ~(1U << 5U);
-    }
 }
 
 void board_reset_led(enum board_led id)
 {
     if (id == LED_DALI) {
-        LPC_GPIO3->DATA |= (1U << 5U);
+        LPC_GPIO2->DATA &= ~(1U << 4U);
+    }
+    if (id == SERIAL_RX) {
+        LPC_GPIO2->DATA &= ~(1U << 5U);
+    }
+    if (id == SERIAL_RX) {
+        LPC_GPIO2->DATA &= ~(1U << 6U);
+    }
+}
+
+void board_set_led(enum board_led id)
+{
+    if (id == LED_DALI) {
+        LPC_GPIO2->DATA |= (1U << 4U);
+    }
+    if (id == SERIAL_RX) {
+        LPC_GPIO2->DATA |= (1U << 5U);
+    }
+    if (id == SERIAL_RX) {
+        LPC_GPIO2->DATA |= (1U << 6U);
     }
 }
 
 void board_dali_tx_set(bool state)
 {
-    // pin function: PIO2_5
-    // function mode: pull-up resistor enabled
-    // hysteresis disabled
-    // standard gpio
-    LPC_GPIO0->DIR |= (1U << 1U);
-    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (0 << IOCON_R_PIO0_11_FUNC_SHIFT))
-                         | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT));
+    LPC_GPIO0->DIR |= (1U << 11U);
+    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (1 << IOCON_R_PIO0_11_FUNC_SHIFT))
+                         | (IOCON_R_PIO0_11_MODE_MASK & (1 << IOCON_R_PIO0_11_MODE_SHIFT))
+                         | (IOCON_R_PIO0_11_ADMODE);
     if (state)
         LPC_GPIO0->DATA |= (1U << 11U);
     else
@@ -173,7 +182,8 @@ void board_dali_tx_timer_setup(uint32_t count)
     // hysteresis disabled
     // standard gpio
     LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (3 << IOCON_R_PIO0_11_FUNC_SHIFT))
-                         | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT));
+                         | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT))
+                         | (IOCON_R_PIO0_11_ADMODE);
     // start timer
     LPC_TMR32B0->TCR = TMR32B0TCR_CEN;
 }
@@ -317,21 +327,21 @@ static void board_heartbeat(TimerHandle_t NOUSE(dummy))
     }
 }
 
-// static void board_tx_timeout(TimerHandle_t NOUSE(dummy))
-// {
-//     board_reset_led(SERIAL_TX);
-// }
+static void board_tx_timeout(TimerHandle_t NOUSE(dummy))
+{
+    board_reset_led(SERIAL_TX);
+}
 
-// static void board_rx_timeout(TimerHandle_t NOUSE(dummy))
-// {
-//     board_reset_led(SERIAL_RX);
-// }
+static void board_rx_timeout(TimerHandle_t NOUSE(dummy))
+{
+    board_reset_led(SERIAL_RX);
+}
 
 static void board_stop_all_timer(void)
 {
-    // xTimerStop(board_heartbeat_timer_id, 0x0);
-    // xTimerStop(board_tx_timer_id, 0x0);
-    // xTimerStop(board_rx_timer_id, 0x0);
+    xTimerStop(board_heartbeat_timer_id, 0x0);
+    xTimerStop(board_tx_timer_id, 0x0);
+    xTimerStop(board_rx_timer_id, 0x0);
 }
 
 void board_error(void)
@@ -345,13 +355,13 @@ void board_error(void)
 void board_flash_rx(void)
 {
     board_set_led(SERIAL_RX);
-    // xTimerStart(board_rx_timer_id, 0x0);
+    xTimerStart(board_rx_timer_id, 0x0);
 }
 
 void board_flash_tx(void)
 {
     board_set_led(SERIAL_TX);
-    // xTimerStart(board_tx_timer_id, 0x0);
+    xTimerStart(board_tx_timer_id, 0x0);
 }
 
 static void board_setup_IRQs(void)
@@ -366,13 +376,16 @@ void board_init(void)
     LOG_THIS_INVOCATION(LOG_INIT);
 
     LOG_TEST(board_heartbeat_timer_id = xTimerCreateStatic(
-                 "heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer));
-    // LOG_TEST(board_rx_timer_id =
-    //              xTimerCreateStatic("rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_rx_timeout, &board_rx_buffer));
-    // LOG_TEST(board_tx_timer_id =
-    //              xTimerCreateStatic("tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_tx_timeout, &board_tx_buffer));
+                "heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer));
+    LOG_TEST(board_rx_timer_id = xTimerCreateStatic(
+                "rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_rx_timeout, &board_rx_buffer));
+    LOG_TEST(board_tx_timer_id = xTimerCreateStatic(
+                "tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_tx_timeout, &board_tx_buffer));
     LOG_TEST(xTimerStart(board_heartbeat_timer_id, 0x0));
     board_setup_pins();
+    board_reset_led(LED_DALI);
+    board_reset_led(SERIAL_RX);
+    board_reset_led(SERIAL_TX);
     board_setup_IRQs();
 }
 

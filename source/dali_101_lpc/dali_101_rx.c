@@ -32,6 +32,7 @@ enum rx_status {
 };
 
 // see IEC 62386-101-2018 Table 18, Table 19 - Transmitter bit timing
+// see IEC 62386-101-2018 Table 4 - Power interruption of bus power
 static const struct _rx_timing {
     uint32_t min_half_bit_begin_us;
     uint32_t max_half_bit_begin_us;
@@ -40,6 +41,7 @@ static const struct _rx_timing {
     uint32_t min_full_bit_inside_us;
     uint32_t max_full_bit_inside_us;
     uint32_t min_stop_condition_us;
+    uint32_t min_failure_condition_us;
 } rx_timing = {
     .min_half_bit_begin_us = 333,   // Table 18
     .max_half_bit_begin_us = 500,
@@ -48,6 +50,7 @@ static const struct _rx_timing {
     .min_full_bit_inside_us = 666,
     .max_full_bit_inside_us = 1000,
     .min_stop_condition_us = 2400,
+    .min_failure_condition_us = 500000, // Table 4
 };
 
 // module variables
@@ -85,6 +88,9 @@ static void irq_match_stopbit_callback(void)
     BaseType_t higher_priority_woken = pdFALSE;
     xTaskNotifyFromISR(rx.task_handle, NOTIFY_MATCH, eSetBits, &higher_priority_woken);
     board_dali_rx_stopbit_match_enable(false);
+    if (board_dali_rx_pin() == DALI_RX_IDLE) {
+        rx.status = LOW;
+    }
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
@@ -105,12 +111,12 @@ void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
     if (rx.status == ERROR_IN_FRAME) {
         return;
     }
-    if (rx.status == IDLE) {
+    if (rx.status == IDLE || rx.status == LOW) {
         rx.frame.timestamp = xTaskGetTickCount();
     }
     rx.frame.is_status = true;
     rx.frame.length = code;
-    rx.frame.data = (time_us & 0xffffff) | bit;
+    rx.frame.data = (time_us & 0xffffff)<<8 | bit;
     xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     rx.status = ERROR_IN_FRAME;
 }
@@ -239,6 +245,20 @@ static void process_capture_notification(void)
             break;
         case ERROR_IN_FRAME:
             break;
+        case LOW:
+            if (board_dali_rx_pin() == DALI_RX_IDLE) {
+                const enum dali_error code = ((rx.frame.length <=1) ? DALI_ERROR_RECEIVE_START_TIMING : DALI_ERROR_RECEIVE_DATA_TIMING); 
+                const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
+                generate_error_frame(code, (rx.frame.length-1), time_difference_us);
+            }
+            break;
+        case FAILURE:
+            if (board_dali_rx_pin() == DALI_RX_IDLE) {
+                const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
+                generate_error_frame(DALI_SYSTEM_RECOVER, (rx.frame.length-1), time_difference_us);
+            }
+            break;
+            break;
         default:
             LOG_ASSERT(false);
             break;
@@ -255,10 +275,23 @@ static void process_match_notification(void)
         case START_BIT_INSIDE:
         case DATA_BIT_START:
         case DATA_BIT_INSIDE:
+            manage_tx();
+            rx_reset();
+            finish_frame();
+            break;
         case ERROR_IN_FRAME:
             manage_tx();
-            finish_frame();
             rx_reset();
+            break;
+        case LOW:
+        case FAILURE:
+            const uint32_t time_difference_us = board_dali_rx_get_count() - rx.last_edge_count;
+            if (time_difference_us >= rx_timing.min_failure_condition_us) {
+                generate_error_frame(DALI_SYSTEM_FAILURE, 0, time_difference_us);
+                rx.status = FAILURE;
+            }
+            board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
+            board_dali_rx_stopbit_match_enable(true);
             break;
         default:
             LOG_ASSERT(false);

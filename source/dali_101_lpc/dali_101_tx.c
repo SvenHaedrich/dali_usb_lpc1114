@@ -123,8 +123,8 @@ static void irq_callback(void)
         board_dali_tx_timer_next(tx.count[tx.index_next++], DISABLE_TOGGLE);
         return;
     }
-    board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
+    board_dali_tx_set(DALI_TX_IDLE);
 }
 
 void dali_tx_start_send(void)

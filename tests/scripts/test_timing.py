@@ -5,14 +5,16 @@ import time
 logger = logging.getLogger(__name__)
 
 def set_up_and_send_sequence(serial, bit_timings):
+    short_time = 0.05
     # start sequence
     cmd = "Q\r"
     serial.write(cmd.encode("utf-8"))
+    time.sleep(short_time)
     # set periods
     for period in bit_timings:
         cmd = F"N {period:x}\r"
         serial.write(cmd.encode("utf-8"))
-        time.sleep(0.02)
+        time.sleep(short_time)
     # here we go
     cmd = "X\r"
     serial.write(cmd.encode("utf-8"))
@@ -34,15 +36,24 @@ def read_result_and_assert(serial, type, length, data):
 
 def test_legal_bittiming(serial_conn):
     std_halfbit_period = 417
-    bits = [std_halfbit_period] * 18
+    bits = [std_halfbit_period] * 17
     set_up_and_send_sequence(serial_conn, bits);
     read_result_and_assert(serial_conn, "-", 8, 0xff)
 
-@pytest.mark.parametrize("index,value",[(2,0x00), (4,0x80), (6,0xC0), (8,0xE0), (10,0xF0), (12,0xF8), (14,0xFC), (16,0xFE)])
+@pytest.mark.parametrize("index,value",[
+    (1,0x00), 
+    (3,0x80), 
+    (5,0xC0), 
+    (7,0xE0), 
+    (9,0xF0), 
+    (11,0xF8), 
+    (13,0xFC), 
+    (15,0xFE)
+    ])
 def test_more_legal_timings(serial_conn, index, value):
     std_halfbit_period = 417
     std_fullbit_period = 833
-    bits = [std_halfbit_period] * 18
+    bits = [std_halfbit_period] * 17
     bits[index] = std_fullbit_period
     set_up_and_send_sequence(serial_conn, bits);
     read_result_and_assert(serial_conn, "-", 8, value)

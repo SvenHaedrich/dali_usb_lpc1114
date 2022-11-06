@@ -54,24 +54,24 @@ static void print_help(void)
     LOG_THIS_INVOCATION(LOG_UART);
 
     serial_print_head();
-    printf("OUTPUT: {ttttttttEss dddddddd}\r\n");
-    printf("where\r\n");
-    printf("       tttttttt - timestamp, each tick equals 1 ms, hex representation with fixed length of 8 digits\r\n");
-    printf("       E        - either '-' state ok, or '*' error detected\r\n");
-    printf("       ss       - number of bits received, hex representation with fixed length of 2 digits\r\n");
-    printf("       dddddddd - data received, hex representation with fixed length of 8 digits\r\n");
-    printf("\r\n");
-    printf("INPUT: Sp l d <cr>   - send single DALI frame\r\n");
-    printf("       Tp l d <cr>   - send DALI frame twice\r\n");
-    printf("       Rp r l d <cr> - repeat DALI frame\r\n");
-    printf("       ?             - show this text\r\n");
-    printf("where\r\n");
-    printf("      p - frame priority 0=backward frame..6=priority 5\r\n");
-    printf("      l - number of data bits to send 1..0x20 in hexadecimal representation\r\n");
-    printf("      d - data to send, hexadecimal representation\r\n");
-    printf("      r - number of repeats\r\n");
-    printf("SAMPLE:\r\n");
-    printf("     S1 10 ff00 - send BROADCAST OFF\r\n");
+    // printf("OUTPUT: {ttttttttEss dddddddd}\r\n");
+    // printf("where\r\n");
+    // printf("       tttttttt - timestamp, each tick equals 1 ms, hex representation with fixed length of 8 digits\r\n");
+    // printf("       E        - either '-' state ok, or '*' error detected\r\n");
+    // printf("       ss       - number of bits received, hex representation with fixed length of 2 digits\r\n");
+    // printf("       dddddddd - data received, hex representation with fixed length of 8 digits\r\n");
+    // printf("\r\n");
+    // printf("INPUT: Sp l d <cr>   - send single DALI frame\r\n");
+    // printf("       Tp l d <cr>   - send DALI frame twice\r\n");
+    // printf("       Rp r l d <cr> - repeat DALI frame\r\n");
+    // printf("       ?             - show this text\r\n");
+    // printf("where\r\n");
+    // printf("      p - frame priority 0=backward frame..6=priority 5\r\n");
+    // printf("      l - number of data bits to send 1..0x20 in hexadecimal representation\r\n");
+    // printf("      d - data to send, hexadecimal representation\r\n");
+    // printf("      r - number of repeats, hexadecimal representation\r\n");
+    // printf("SAMPLE:\r\n");
+    // printf("     S1 10 ff00 - send BROADCAST OFF\r\n");
 }
 
 void serial_print_frame(const struct dali_rx_frame frame)
@@ -110,7 +110,7 @@ static void send_command(bool send_twice)
     }
     const struct dali_tx_frame frame = { 
         .repeat = send_twice ? 1 : 0,
-        .priority = send_twice ? DALI_PRIORITY_SEND_TWICE : priority,
+        .priority = priority,
         .length = length,
         .data = data 
     };
@@ -134,15 +134,13 @@ static void send_repeated_command(void)
     if (n != 4) {
         print_parameter_error();
     }
-    if (repeat) {
-        const struct dali_tx_frame frame = { 
-            .repeat = repeat,
-            .priority = priority,
-            .length = length,
-            .data = data 
-        };
-        xQueueSendToBack(serial.queue_handle, &frame, 0);
-    }
+    const struct dali_tx_frame frame = { 
+        .repeat = repeat,
+        .priority = priority,
+        .length = length,
+        .data = data 
+    };
+    xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
 
 static void next_sequence(void)
