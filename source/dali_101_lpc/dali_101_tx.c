@@ -113,7 +113,7 @@ static bool calculate_counts(const struct dali_tx_frame frame)
     return add_stop_condition();
 }
 
-static void irq_callback(void)
+void dali_tx_irq_callback(void)
 {
     if (tx.index_next < tx.index_max) {
         board_dali_tx_timer_next(tx.count[tx.index_next++], NOTHING);
@@ -205,6 +205,5 @@ void dali_101_sequence_execute(void)
 void dali_tx_init(void)
 {
     board_dali_tx_set(DALI_TX_IDLE);
-    board_dali_tx_set_callback(irq_callback);
     tx_reset();
 }

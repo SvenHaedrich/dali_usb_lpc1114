@@ -72,7 +72,7 @@ extern uint32_t tx_get_settling_time(void);
 extern bool dali_tx_repeat(void);
 extern void tx_reset(void);
 
-static void irq_capture_callback(void)
+void dali_rx_irq_capture_callback(void)
 {
     BaseType_t higher_priority_woken = pdFALSE;
 
@@ -83,18 +83,15 @@ static void irq_capture_callback(void)
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
-static void irq_match_stopbit_callback(void)
+void dali_rx_irq_stopbit_match_callback(void)
 {
     BaseType_t higher_priority_woken = pdFALSE;
     xTaskNotifyFromISR(rx.task_handle, NOTIFY_MATCH, eSetBits, &higher_priority_woken);
     board_dali_rx_stopbit_match_enable(false);
-    if (board_dali_rx_pin() == DALI_RX_IDLE) {
-        rx.status = LOW;
-    }
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
-static void irq_match_period_callback(void)
+void dali_rx_irq_period_match_callback(void)
 {
     dali_tx_start_send();
 }
@@ -111,9 +108,13 @@ void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
     if (rx.status == ERROR_IN_FRAME) {
         return;
     }
-    if (rx.status == IDLE || rx.status == LOW) {
+    if (rx.status == IDLE) {
         rx.frame.timestamp = xTaskGetTickCount();
     }
+    if (rx.status == LOW) {
+        rx.frame.timestamp = xTaskGetTickCount() - (rx_timing.min_failure_condition_us/1000);
+    }
+    LOG_PRINTF(LOG_LOW, "error: %d timing: %d us", code, time_us);
     rx.frame.is_status = true;
     rx.frame.length = code;
     rx.frame.data = (time_us & 0xffffff)<<8 | bit;
@@ -247,17 +248,22 @@ static void process_capture_notification(void)
             break;
         case LOW:
             if (board_dali_rx_pin() == DALI_RX_IDLE) {
-                const enum dali_error code = ((rx.frame.length <=1) ? DALI_ERROR_RECEIVE_START_TIMING : DALI_ERROR_RECEIVE_DATA_TIMING); 
+                enum dali_error code = DALI_ERROR_RECEIVE_START_TIMING;
+                if (rx.frame.length > 1) {
+                    code = DALI_ERROR_RECEIVE_DATA_TIMING;
+                }
                 const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
-                generate_error_frame(code, (rx.frame.length-1), time_difference_us);
+                generate_error_frame(code, rx.frame.length, time_difference_us);
             }
             break;
         case FAILURE:
             if (board_dali_rx_pin() == DALI_RX_IDLE) {
+                rx.frame.timestamp = xTaskGetTickCount();
                 const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
-                generate_error_frame(DALI_SYSTEM_RECOVER, (rx.frame.length-1), time_difference_us);
+                generate_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
+                manage_tx();
+                rx_reset();
             }
-            break;
             break;
         default:
             LOG_ASSERT(false);
@@ -268,41 +274,42 @@ static void process_capture_notification(void)
 
 static void process_match_notification(void)
 {
-    switch (rx.status) {
-        case IDLE:
-            break;
-        case START_BIT_START:
-        case START_BIT_INSIDE:
-        case DATA_BIT_START:
-        case DATA_BIT_INSIDE:
-            manage_tx();
-            rx_reset();
-            finish_frame();
-            break;
-        case ERROR_IN_FRAME:
-            manage_tx();
-            rx_reset();
-            break;
-        case LOW:
-        case FAILURE:
-            const uint32_t time_difference_us = board_dali_rx_get_count() - rx.last_edge_count;
-            if (time_difference_us >= rx_timing.min_failure_condition_us) {
-                generate_error_frame(DALI_SYSTEM_FAILURE, 0, time_difference_us);
-                rx.status = FAILURE;
-            }
-            board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
-            board_dali_rx_stopbit_match_enable(true);
-            break;
-        default:
-            LOG_ASSERT(false);
-            break;
+    if (board_dali_rx_pin() == DALI_RX_IDLE) {
+        switch (rx.status) {
+            case IDLE:
+                return;
+            case START_BIT_START:
+            case START_BIT_INSIDE:
+            case DATA_BIT_START:
+            case DATA_BIT_INSIDE:
+                manage_tx();
+                finish_frame();
+                rx_reset();
+                return;
+            case LOW:
+            case FAILURE:
+            case ERROR_IN_FRAME:
+                manage_tx();
+                rx_reset();
+                return;
+            default:
+                LOG_ASSERT(false);
+                return;
+        }
     }
+    if (rx.status == LOW) {
+        generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
+        rx.status = FAILURE;
+        return;
+    }
+    board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
+    board_dali_rx_stopbit_match_enable(true);
+    rx.status = LOW;
 }
 
 __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void *dummy)
 {
     LOG_THIS_INVOCATION(LOG_TASK);
-    rx_reset();
 
     while (true) {
         uint32_t notifications;
@@ -337,9 +344,6 @@ static void dali_rx_init(void)
         QUEUE_SIZE, sizeof(struct dali_rx_frame), queue_storage, &queue_buffer);
     LOG_ASSERT(rx.queue_handle);
 
-    board_dali_rx_set_capture_callback(irq_capture_callback);
-    board_dali_rx_set_stopbit_match_callback(irq_match_stopbit_callback);
-    board_dali_rx_set_period_match_callback(irq_match_period_callback);
     board_dali_rx_timer_setup();
 
     if (board_dali_rx_pin()==DALI_RX_IDLE) {

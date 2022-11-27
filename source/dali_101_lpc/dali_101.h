@@ -52,3 +52,8 @@ void dali_101_sequence_start(void);
 void dali_101_sequence_next(uint32_t period_us);
 void dali_101_sequence_execute(void);
 void dali_101_request_status_frame(void);
+
+void dali_tx_irq_callback(void);
+void dali_rx_irq_capture_callback(void);
+void dali_rx_irq_stopbit_match_callback(void);
+void dali_rx_irq_period_match_callback(void);
