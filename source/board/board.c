@@ -8,6 +8,7 @@
 #include "bitfields.h"
 #include "../main.h"
 #include "../log/log.h"
+#include "../dali_101_lpc/dali_101.h" // irq callbacks
 #include "board.h"
 
 #define HEARTBEAT_PERIOD_MS (100U)
@@ -25,10 +26,6 @@ static StaticTimer_t board_rx_buffer;
 static StaticTimer_t board_tx_buffer;
 
 uint32_t SystemCoreClock = 12000000;
-void (*irq_timer_32_0)(void) = {0};
-void (*irq_timer_32_1_capture)(void) = {0};
-void (*irq_timer_32_1_stopbit)(void) = {0};
-void (*irq_timer_32_1_period)(void) = {0};
 
 bool core_isr_active(void)
 {
@@ -191,36 +188,23 @@ void board_dali_tx_timer_setup(uint32_t count)
 void TIMER32_0_IRQHandler(void)
 {
     if (LPC_TMR32B0->IR & TMR32B0IR_MR3_INTERRUPT) {
-        if (irq_timer_32_0) {
-            irq_timer_32_0();
-        }
+        dali_tx_irq_callback();
         LPC_TMR32B0->IR = TMR32B0IR_MR3_INTERRUPT;
     }
-}
-
-void board_dali_tx_set_callback(void (*isr)(void))
-{
-    irq_timer_32_0 = isr;
 }
 
 void TIMER32_1_IRQHandler(void)
 {
     if (LPC_TMR32B1->IR & TMR32B0IR_CR0_INTERRUPT) {
-        if (irq_timer_32_1_capture) {
-            irq_timer_32_1_capture();
-        }
+        dali_rx_irq_capture_callback();
         LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
     }
     if (LPC_TMR32B1->IR & TMR32B0IR_MR0_INTERRUPT) {
-        if (irq_timer_32_1_stopbit) {
-            irq_timer_32_1_stopbit();
-        }
+        dali_rx_irq_stopbit_match_callback();
         LPC_TMR32B1->IR = TMR32B0IR_MR0_INTERRUPT;
     }
     if (LPC_TMR32B1->IR & TMR32B0IR_MR1_INTERRUPT) {
-        if (irq_timer_32_1_period) {
-            irq_timer_32_1_period();
-        }
+        dali_rx_irq_period_match_callback();
         LPC_TMR32B1->IR = TMR32B0IR_MR1_INTERRUPT;
     }
 }
@@ -238,21 +222,6 @@ uint32_t board_dali_rx_get_capture(void)
 uint32_t board_dali_rx_get_count(void)
 {
     return LPC_TMR32B1->TC;
-}
-
-void board_dali_rx_set_capture_callback(void (*isr)(void))
-{
-    irq_timer_32_1_capture = isr;
-}
-
-void board_dali_rx_set_stopbit_match_callback(void (*isr)(void))
-{
-    irq_timer_32_1_stopbit = isr;
-}
-
-void board_dali_rx_set_period_match_callback(void (*isr)(void))
-{
-    irq_timer_32_1_period = isr;
 }
 
 void board_dali_rx_set_stopbit_match(uint32_t match_count)
