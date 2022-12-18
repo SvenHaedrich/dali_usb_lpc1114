@@ -49,31 +49,6 @@ void serial_print_head(void)
     printf("\r\n");
 }
 
-static void print_help(void)
-{
-    LOG_THIS_INVOCATION(LOG_UART);
-
-    serial_print_head();
-    // printf("OUTPUT: {ttttttttEss dddddddd}\r\n");
-    // printf("where\r\n");
-    // printf("       tttttttt - timestamp, each tick equals 1 ms, hex representation with fixed length of 8 digits\r\n");
-    // printf("       E        - either '-' state ok, or '*' error detected\r\n");
-    // printf("       ss       - number of bits received, hex representation with fixed length of 2 digits\r\n");
-    // printf("       dddddddd - data received, hex representation with fixed length of 8 digits\r\n");
-    // printf("\r\n");
-    // printf("INPUT: Sp l d <cr>   - send single DALI frame\r\n");
-    // printf("       Tp l d <cr>   - send DALI frame twice\r\n");
-    // printf("       Rp r l d <cr> - repeat DALI frame\r\n");
-    // printf("       ?             - show this text\r\n");
-    // printf("where\r\n");
-    // printf("      p - frame priority 0=backward frame..6=priority 5\r\n");
-    // printf("      l - number of data bits to send 1..0x20 in hexadecimal representation\r\n");
-    // printf("      d - data to send, hexadecimal representation\r\n");
-    // printf("      r - number of repeats, hexadecimal representation\r\n");
-    // printf("SAMPLE:\r\n");
-    // printf("     S1 10 ff00 - send BROADCAST OFF\r\n");
-}
-
 void serial_print_frame(const struct dali_rx_frame frame)
 {
     const char c = frame.is_status ? '*' : '-';
@@ -99,8 +74,6 @@ static void print_parameter_error (void)
 
 static void send_command(bool send_twice)
 {
-    LOG_THIS_INVOCATION(LOG_UART);
-
     int priority;
     unsigned int length;
     unsigned long data;
@@ -119,8 +92,6 @@ static void send_command(bool send_twice)
 
 static void send_repeated_command(void)
 {
-    LOG_THIS_INVOCATION(LOG_UART);
-
     int priority;
     unsigned int length;
     unsigned int repeat;
@@ -145,8 +116,6 @@ static void send_repeated_command(void)
 
 static void next_sequence(void)
 {
-    LOG_THIS_INVOCATION(LOG_UART);
-
     unsigned long period_us;
     const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%lx", &period_us);
     if (n != 1) {
@@ -157,8 +126,6 @@ static void next_sequence(void)
 
 __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* dummy)
 {
-    LOG_THIS_INVOCATION(LOG_TASK);
-
     while (true) {
         uint32_t notifications;
         const BaseType_t result = xTaskNotifyWait(pdFALSE, ULONG_MAX, &notifications, portMAX_DELAY);
@@ -180,7 +147,7 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* d
                 break;
             case SERIAL_CMD_HELP:
                 board_flash_tx();
-                print_help();
+                serial_print_head();
                 break;
             case SERIAL_CMD_START_SEQ:
                 board_flash_tx();
@@ -244,13 +211,12 @@ bool serial_get(struct dali_tx_frame* frame, TickType_t wait)
 static void serial_initialize_uart_interrupt(void)
 {
     LPC_UART->IER |= 0x01; 
+    NVIC_SetPriority(UART_IRQn,1);
     NVIC_EnableIRQ(UART_IRQn);
 }
 
 void serial_init(void)
 {
-    LOG_THIS_INVOCATION(LOG_INIT);
-
     static StaticTask_t task_buffer;
     static StackType_t task_stack[SERIAL_TASK_STACKSIZE];
     serial.task_handle = xTaskCreateStatic(serial_task,
