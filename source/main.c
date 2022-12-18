@@ -22,8 +22,6 @@
 
 __attribute__((noreturn)) static void main_task(__attribute__((unused))void* dummy)
 {
-    LOG_THIS_INVOCATION(LOG_TASK);
-    
     struct dali_rx_frame rx_frame;
     struct dali_tx_frame tx_frame;
     while(true) {
@@ -43,7 +41,7 @@ int main(void)
 {
     serial_print_head();
     log_init();
-    LOG_PRINTF(LOG_FORCE, "dali_lpx_lpc1114 started");
+    LOG_PRINTF(LOG_FORCE, "dali_lpx_lpc1114 start");
     board_init();
     dali_101_init();
     serial_init();
