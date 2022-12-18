@@ -188,24 +188,24 @@ void board_dali_tx_timer_setup(uint32_t count)
 void TIMER32_0_IRQHandler(void)
 {
     if (LPC_TMR32B0->IR & TMR32B0IR_MR3_INTERRUPT) {
-        dali_tx_irq_callback();
         LPC_TMR32B0->IR = TMR32B0IR_MR3_INTERRUPT;
+        dali_tx_irq_callback();
     }
 }
 
 void TIMER32_1_IRQHandler(void)
 {
-    if (LPC_TMR32B1->IR & TMR32B0IR_CR0_INTERRUPT) {
-        dali_rx_irq_capture_callback();
-        LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
-    }
     if (LPC_TMR32B1->IR & TMR32B0IR_MR0_INTERRUPT) {
-        dali_rx_irq_stopbit_match_callback();
         LPC_TMR32B1->IR = TMR32B0IR_MR0_INTERRUPT;
+        dali_rx_irq_stopbit_match_callback();
     }
     if (LPC_TMR32B1->IR & TMR32B0IR_MR1_INTERRUPT) {
-        dali_rx_irq_period_match_callback();
         LPC_TMR32B1->IR = TMR32B0IR_MR1_INTERRUPT;
+        dali_rx_irq_period_match_callback();
+    }
+    if (LPC_TMR32B1->IR & TMR32B0IR_CR0_INTERRUPT) {
+        LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
+        dali_rx_irq_capture_callback();
     }
 }
 
@@ -265,6 +265,7 @@ void board_dali_rx_timer_setup(void)
     // capture both edges, trigger IRQ
     LPC_TMR32B1->CCR = (TMR32B0CCR_CAP0FE|TMR32B0CCR_CAP0RE|TMR32B0CCR_CAP0I);
     board_dali_rx_stopbit_match_enable(false);
+    board_dali_rx_period_match_enable(false);
     // pin function: CT32B1_CAP0
     // function mode: enable pull up resistor
     // hysteresis disabled
@@ -335,6 +336,8 @@ void board_flash_tx(void)
 
 static void board_setup_IRQs(void)
 {
+    NVIC_SetPriority(TIMER_32_0_IRQn, 1);
+    NVIC_SetPriority(TIMER_32_1_IRQn, 0);
     NVIC_EnableIRQ(TIMER_32_0_IRQn);
     NVIC_EnableIRQ(TIMER_32_1_IRQn);
     __enable_irq();
@@ -342,8 +345,6 @@ static void board_setup_IRQs(void)
 
 void board_init(void)
 {
-    LOG_THIS_INVOCATION(LOG_INIT);
-
     LOG_TEST(board_heartbeat_timer_id = xTimerCreateStatic(
                 "heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer));
     LOG_TEST(board_rx_timer_id = xTimerCreateStatic(
