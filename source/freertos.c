@@ -63,7 +63,7 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName)
     configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
     called if a stack overflow is detected. */
     board_error();
-    LOG_PRINTF(LOG_FORCE, "** stack overflow in task %s detected", pcTaskName);
+    LOG_PRINTF(LOG_FORCE, "* stack overflow in task %s", pcTaskName);
     while (true)
         ;
 }
@@ -81,14 +81,14 @@ void vApplicationMallocFailedHook(void)
     to query the size of free heap space that remains (although it does not
     provide information on how the remaining heap might be fragmented). */
     board_error();
-    LOG_PRINTF(LOG_FORCE, "** memory allocation failed");
+    LOG_PRINTF(LOG_FORCE, "* memory allocation fail");
     while (true)
         ;
 }
 
 void vAssertFailed(const char* file, uint16_t line)
 {
-    LOG_PRINTF(LOG_FORCE, "** assert failed %s (line: %d)", file, line);
+    LOG_PRINTF(LOG_FORCE, "* assert fail %s (line: %d)", file, line);
     while (true)
         ;
 }
