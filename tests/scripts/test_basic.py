@@ -24,7 +24,7 @@ def test_version(serial_conn):
                     continue
     assert major == 1
     assert minor == 5
-    assert bugfix >= 0
+    assert bugfix >= 4
 
 def test_8bit_loopback(serial_conn):
     for i in range(0,0x100):
