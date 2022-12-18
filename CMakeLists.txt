@@ -23,7 +23,7 @@ add_definitions("-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
 add_link_options(-mcpu=cortex-m0)
 add_link_options(-T ${LINKER_SCRIPT})
 add_link_options(-Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map)
-add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb)
+add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mthumb)
 add_link_options(-Wl,--start-group -lc -lm -Wl,--end-group)
 
 file(GLOB_RECURSE SOURCE_FILES
