@@ -222,6 +222,7 @@ static void set_new_status (enum rx_status new_state)
 
 static void process_capture_notification(void)
 {
+    LOG_PRINTF(LOG_LOW,"capture %d", rx.status);
     switch (rx.status) {
         case IDLE:
             if (board_dali_rx_pin()==DALI_RX_ACTIVE) {
@@ -254,6 +255,8 @@ static void process_capture_notification(void)
                 }
                 const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
                 generate_error_frame(code, rx.frame.length, time_difference_us);
+                manage_tx();
+                rx_reset();
             }
             break;
         case FAILURE:
@@ -274,6 +277,7 @@ static void process_capture_notification(void)
 
 static void process_match_notification(void)
 {
+    LOG_PRINTF(LOG_LOW,"match %d", rx.status);
     if (board_dali_rx_pin() == DALI_RX_IDLE) {
         switch (rx.status) {
             case IDLE:
@@ -297,20 +301,22 @@ static void process_match_notification(void)
                 return;
         }
     }
-    if (rx.status == LOW) {
-        generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
-        rx.status = FAILURE;
-        return;
-    }
-    board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
-    board_dali_rx_stopbit_match_enable(true);
-    rx.status = LOW;
+    switch (rx.status) {
+        case LOW:
+            generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
+            rx.status = FAILURE;
+            return;
+        case FAILURE:
+            return;
+        default:
+            board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
+            board_dali_rx_stopbit_match_enable(true);
+            rx.status = LOW;
+    } 
 }
 
 __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void *dummy)
 {
-    LOG_THIS_INVOCATION(LOG_TASK);
-
     while (true) {
         uint32_t notifications;
         const BaseType_t result = xTaskNotifyWait(pdFALSE, ULONG_MAX, &notifications, portMAX_DELAY);
@@ -356,8 +362,6 @@ static void dali_rx_init(void)
 
 void dali_101_request_status_frame(void)
 {
-    LOG_THIS_INVOCATION(LOG_LOW);
-    
     const struct dali_rx_frame status_frame = {
         .is_status = true,
         .timestamp = xTaskGetTickCount(),
@@ -370,8 +374,6 @@ void dali_101_request_status_frame(void)
 
 void dali_101_init(void)
 {
-    LOG_THIS_INVOCATION(LOG_INIT);
-
     dali_tx_init();
     dali_rx_init();
 }

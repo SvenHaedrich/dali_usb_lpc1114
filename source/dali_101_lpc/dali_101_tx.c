@@ -160,12 +160,11 @@ bool dali_101_send_is_ready(void)
 void dali_101_send (const struct dali_tx_frame frame)
 {
     LOG_PRINTF(LOG_LOW, "dali_101_send (0x%08x)", frame.data);
-    LOG_ASSERT(frame.priority < DALI_PRIORITY_END);
     tx_reset();
     tx.buffer_is_free = false;
     tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
     tx.repeat = frame.repeat;
-    if (calculate_counts(frame)) {
+    if(calculate_counts(frame)) {
         LOG_PRINTF(LOG_LOW, "  conversion failed");
         return;
     }
@@ -175,7 +174,6 @@ void dali_101_send (const struct dali_tx_frame frame)
 
 void dali_101_sequence_start(void)
 {
-    LOG_THIS_INVOCATION(LOG_LOW);
     tx_reset();
     tx.buffer_is_free = false;
     tx.min_settling_time = dali_timing.settling_time_us[DALI_PRIORITY_1];
@@ -184,7 +182,6 @@ void dali_101_sequence_start(void)
 
 void dali_101_sequence_next(uint32_t period_us)
 {
-    LOG_PRINTF(LOG_LOW, "dali_101_sequence_next(0x%08x)", period_us);
     tx.count_now += period_us;
     tx.count[tx.index_max++] = tx.count_now;
     if (tx.index_max > COUNT_ARRAY_SIZE) {
