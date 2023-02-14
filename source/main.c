@@ -6,7 +6,6 @@
 
 #include "board/board.h"
 #include "version.h"
-#include "log/log.h"
 #include "dali_101_lpc/dali_101.h"
 #include "serial.h"
 
@@ -17,14 +16,14 @@
 #error "expected DALI 101 minor version 0."
 #endif
 
-#define MAIN_TASK_STACKSIZE (2*configMINIMAL_STACK_SIZE)
+#define MAIN_TASK_STACKSIZE (2 * configMINIMAL_STACK_SIZE)
 #define MAIN_PRIORITY (tskIDLE_PRIORITY + 1)
 
-__attribute__((noreturn)) static void main_task(__attribute__((unused))void* dummy)
+__attribute__((noreturn)) static void main_task(__attribute__((unused)) void* dummy)
 {
     struct dali_rx_frame rx_frame;
     struct dali_tx_frame tx_frame;
-    while(true) {
+    while (true) {
         if (dali_101_get(&rx_frame, 0)) {
             serial_print_frame(rx_frame);
         }
@@ -33,22 +32,20 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused))void* dum
                 dali_101_send(tx_frame);
             }
         }
-        vTaskDelay((2/portTICK_PERIOD_MS));
+        vTaskDelay((2 / portTICK_PERIOD_MS));
     }
 }
 
 int main(void)
 {
     serial_print_head();
-    log_init();
-    LOG_PRINTF(LOG_FORCE, "dali_lpx_lpc1114 start");
     board_init();
     dali_101_init();
     serial_init();
 
     static StaticTask_t task_buffer;
     static StackType_t task_stack[MAIN_TASK_STACKSIZE];
-    LOG_TEST(xTaskCreateStatic(main_task,"MAIN", MAIN_TASK_STACKSIZE, NULL, MAIN_PRIORITY, task_stack, &task_buffer));
+    xTaskCreateStatic(main_task, "MAIN", MAIN_TASK_STACKSIZE, NULL, MAIN_PRIORITY, task_stack, &task_buffer);
 
     vTaskStartScheduler();
 }
