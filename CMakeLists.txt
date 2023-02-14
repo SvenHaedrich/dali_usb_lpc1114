@@ -23,7 +23,7 @@ add_definitions("-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
 add_link_options(-mcpu=cortex-m0)
 add_link_options(-T ${LINKER_SCRIPT})
 add_link_options(-Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map)
-add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb)
+add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mthumb)
 add_link_options(-Wl,--start-group -lc -lm -Wl,--end-group)
 
 file(GLOB_RECURSE SOURCE_FILES
@@ -38,16 +38,6 @@ file(GLOB_RECURSE SOURCE_FILES
         "./thirdparty/FreeRTOS-Kernel/timers.c"
         "./thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0/port.c" 
         )
-
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    message("RTT enabled")
-    list(APPEND SOURCE_FILES
-        "source/log/SEGGER_RTT.c"
-        "source/log/SEGGER_RTT_printf.c"
-        )
-    include_directories("source/log/RTT")
-    add_definitions(-DLOGBACKEND_RTT)
-endif()
 
 include_directories(
         source

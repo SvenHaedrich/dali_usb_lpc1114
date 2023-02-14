@@ -25,3 +25,9 @@
 [submodule "thirdparty/cmsis-core-lpc111x"]
 	path = thirdparty/cmsis-core-lpc111x
 	url = git@github.com:scottt/cmsis-core-lpc111x.git
+[submodule "tests/dali_py"]
+	path = tests/dali_py
+	url = git@github.com:SvenHaedrich/dali_py.git
+[submodule "tests/scripts/dali_py"]
+	path = tests/scripts/dali_py
+	url = git@github.com:SvenHaedrich/dali_py.git
