@@ -39,16 +39,6 @@ file(GLOB_RECURSE SOURCE_FILES
         "./thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0/port.c" 
         )
 
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    message("RTT enabled")
-    list(APPEND SOURCE_FILES
-        "source/log/SEGGER_RTT.c"
-        "source/log/SEGGER_RTT_printf.c"
-        )
-    include_directories("source/log/RTT")
-    add_definitions(-DLOGBACKEND_RTT)
-endif()
-
 include_directories(
         source
         thirdparty/cmsis-core-lpc111x/cmsis-core-lpc111x
