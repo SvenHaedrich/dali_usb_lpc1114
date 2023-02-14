@@ -169,7 +169,10 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused))void* d
 
 void UART_IRQHandler(void)
 {
-    if (LPC_UART->IIR & (1U<<2U)) {
+    uint8_t IIR_value = LPC_UART->IIR;
+    uint8_t IIR_initd = (IIR_value >> 1) & 7;
+
+    if (IIR_initd == 2) {
         BaseType_t higher_priority_woken = pdFALSE;
         const char c = LPC_UART->RBR;
         switch (c) {
