@@ -25,7 +25,7 @@ sudo apt-get install cmake
 
 Debug build
 ```bash
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DLOGBACKEND_RTT=ON
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --clean-first
 ```
 
