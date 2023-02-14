@@ -7,7 +7,6 @@
 #include "lpc11xx.h"
 #include "bitfields.h"
 #include "../main.h"
-#include "../log/log.h"
 #include "../dali_101_lpc/dali_101.h" // irq callbacks
 #include "board.h"
 
@@ -90,7 +89,7 @@ static void board_setup_uart_clock(void)
 static void board_setup_dali_clock(void)
 {
     // enable GPIO, CT32B0 and CT32B1 blocks
-    LPC_SYSCON->SYSAHBCLKCTRL |= (SYSAHBCLKCTRL_CT32B0|SYSAHBCLKCTRL_CT32B1|SYSAHBCLKCTRL_GPIO);
+    LPC_SYSCON->SYSAHBCLKCTRL |= (SYSAHBCLKCTRL_CT32B0 | SYSAHBCLKCTRL_CT32B1 | SYSAHBCLKCTRL_GPIO);
 }
 
 static void board_setup_clocking(void)
@@ -102,7 +101,7 @@ static void board_setup_clocking(void)
 
 static void board_setup_pins(void)
 {
-    LPC_GPIO2->DIR |= (1U << 4U) |(1U << 5U) | (1U << 6U);
+    LPC_GPIO2->DIR |= (1U << 4U) | (1U << 5U) | (1U << 6U);
     LPC_GPIO0->DIR |= (1U << 1U);
 }
 
@@ -135,9 +134,8 @@ void board_set_led(enum board_led id)
 void board_dali_tx_set(bool state)
 {
     LPC_GPIO0->DIR |= (1U << 11U);
-    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (1 << IOCON_R_PIO0_11_FUNC_SHIFT))
-                         | (IOCON_R_PIO0_11_MODE_MASK & (1 << IOCON_R_PIO0_11_MODE_SHIFT))
-                         | (IOCON_R_PIO0_11_ADMODE);
+    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (1 << IOCON_R_PIO0_11_FUNC_SHIFT)) |
+                           (IOCON_R_PIO0_11_MODE_MASK & (1 << IOCON_R_PIO0_11_MODE_SHIFT)) | (IOCON_R_PIO0_11_ADMODE);
     if (state)
         LPC_GPIO0->DATA |= (1U << 11U);
     else
@@ -147,8 +145,8 @@ void board_dali_tx_set(bool state)
 void board_dali_tx_timer_stop(void)
 {
     board_dali_tx_set(DALI_TX_IDLE);
-    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR2I|TMR32B0MCR_MR2R|TMR32B0MCR_MR2S));
-    LPC_TMR32B0->EMR = (TMR32B0EMR_EM2|(TMR32B0EMR_EMC2_MASK & (0 << TMR32B0EMR_EMC2_SHIFT)));
+    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR2I | TMR32B0MCR_MR2R | TMR32B0MCR_MR2S));
+    LPC_TMR32B0->EMR = (TMR32B0EMR_EM2 | (TMR32B0EMR_EMC2_MASK & (0 << TMR32B0EMR_EMC2_SHIFT)));
 }
 
 void board_dali_tx_timer_next(uint32_t count, enum board_toggle toggle)
@@ -163,13 +161,13 @@ void board_dali_tx_timer_setup(uint32_t count)
 {
     LPC_TMR32B0->TCR = TMR32B0TCR_CRST;
     board_dali_tx_timer_stop();
-    board_dali_tx_timer_next(count,NOTHING);
+    board_dali_tx_timer_next(count, NOTHING);
     // set prescaler to base rate
     LPC_TMR32B0->PR = (BOARD_AHB_CLOCK / DALI_TIMER_RATE_HZ) - 1;
     // set timer mode
     LPC_TMR32B0->CTCR = 0;
     // on MR3 match: IRQ
-    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR3I|TMR32B0MCR_MR3R|TMR32B0MCR_MR3S)) | (TMR32B0MCR_MR3I);
+    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR3I | TMR32B0MCR_MR3R | TMR32B0MCR_MR3S)) | (TMR32B0MCR_MR3I);
     // on MR3 match: toggle output - start with DALI active
     LPC_TMR32B0->EMR = TMR32B0EMR_EM3 | (TMR32B0EMR_EMC3_MASK & (3 << TMR32B0EMR_EMC3_SHIFT));
     // outputs are controlled by EMx
@@ -178,9 +176,8 @@ void board_dali_tx_timer_setup(uint32_t count)
     // function mode: no pull up/down resistors
     // hysteresis disabled
     // standard gpio
-    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (3 << IOCON_R_PIO0_11_FUNC_SHIFT))
-                         | (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT))
-                         | (IOCON_R_PIO0_11_ADMODE);
+    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (3 << IOCON_R_PIO0_11_FUNC_SHIFT)) |
+                           (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT)) | (IOCON_R_PIO0_11_ADMODE);
     // start timer
     LPC_TMR32B0->TCR = TMR32B0TCR_CEN;
 }
@@ -238,8 +235,7 @@ void board_dali_rx_stopbit_match_enable(bool enable)
 {
     if (enable) {
         LPC_TMR32B1->MCR |= (TMR32B0MCR_MR0I);
-    }
-    else {
+    } else {
         LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR0I);
     }
 }
@@ -248,12 +244,10 @@ void board_dali_rx_period_match_enable(bool enable)
 {
     if (enable) {
         LPC_TMR32B1->MCR |= (TMR32B0MCR_MR1I);
-    }
-    else {
+    } else {
         LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR1I);
     }
 }
-
 
 void board_dali_rx_timer_setup(void)
 {
@@ -263,26 +257,25 @@ void board_dali_rx_timer_setup(void)
     // set timer mode
     LPC_TMR32B1->CTCR = 0;
     // capture both edges, trigger IRQ
-    LPC_TMR32B1->CCR = (TMR32B0CCR_CAP0FE|TMR32B0CCR_CAP0RE|TMR32B0CCR_CAP0I);
+    LPC_TMR32B1->CCR = (TMR32B0CCR_CAP0FE | TMR32B0CCR_CAP0RE | TMR32B0CCR_CAP0I);
     board_dali_rx_stopbit_match_enable(false);
     board_dali_rx_period_match_enable(false);
     // pin function: CT32B1_CAP0
     // function mode: enable pull up resistor
     // hysteresis disabled
     // digital function mode, standard gpio
-    LPC_IOCON->R_PIO1_0 = (IOCON_R_PIO1_0_FUNC_MASK & (3 << IOCON_R_PIO1_0_FUNC_SHIFT)) | 
-                          (IOCON_R_PIO1_0_MODE_MASK & (2 << IOCON_R_PIO1_0_MODE_SHIFT)) |
-                          (IOCON_R_PIO1_0_ADMODE);
+    LPC_IOCON->R_PIO1_0 = (IOCON_R_PIO1_0_FUNC_MASK & (3 << IOCON_R_PIO1_0_FUNC_SHIFT)) |
+                          (IOCON_R_PIO1_0_MODE_MASK & (2 << IOCON_R_PIO1_0_MODE_SHIFT)) | (IOCON_R_PIO1_0_ADMODE);
     // start timer
     LPC_TMR32B1->TCR = TMR32B0TCR_CEN;
 }
 
-static void board_heartbeat(TimerHandle_t NOUSE(dummy))
+static void board_heartbeat(__attribute__((unused)) TimerHandle_t dummy)
 {
     static uint32_t counter = 0;
 
     counter++;
-    if (board_dali_rx_pin()==DALI_RX_IDLE) {
+    if (board_dali_rx_pin() == DALI_RX_IDLE) {
         if (counter & 1) {
             board_set_led(LED_DALI);
         } else {
@@ -297,12 +290,12 @@ static void board_heartbeat(TimerHandle_t NOUSE(dummy))
     }
 }
 
-static void board_tx_timeout(TimerHandle_t NOUSE(dummy))
+static void board_tx_timeout(__attribute__((unused)) TimerHandle_t dummy)
 {
     board_reset_led(SERIAL_TX);
 }
 
-static void board_rx_timeout(TimerHandle_t NOUSE(dummy))
+static void board_rx_timeout(__attribute__((unused)) TimerHandle_t dummy)
 {
     board_reset_led(SERIAL_RX);
 }
@@ -345,13 +338,13 @@ static void board_setup_IRQs(void)
 
 void board_init(void)
 {
-    LOG_TEST(board_heartbeat_timer_id = xTimerCreateStatic(
-                "heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer));
-    LOG_TEST(board_rx_timer_id = xTimerCreateStatic(
-                "rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_rx_timeout, &board_rx_buffer));
-    LOG_TEST(board_tx_timer_id = xTimerCreateStatic(
-                "tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_tx_timeout, &board_tx_buffer));
-    LOG_TEST(xTimerStart(board_heartbeat_timer_id, 0x0));
+    board_heartbeat_timer_id =
+        xTimerCreateStatic("heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer);
+    board_rx_timer_id =
+        xTimerCreateStatic("rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_rx_timeout, &board_rx_buffer);
+    board_tx_timer_id =
+        xTimerCreateStatic("tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_tx_timeout, &board_tx_buffer);
+    xTimerStart(board_heartbeat_timer_id, 0x0);
     board_setup_pins();
     board_reset_led(LED_DALI);
     board_reset_led(SERIAL_RX);

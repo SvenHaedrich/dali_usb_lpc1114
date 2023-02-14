@@ -6,19 +6,18 @@
 #include "task.h"
 #include "queue.h"
 
-#include "log/log.h"
 #include "board/board.h"
 #include "dali_101.h"
 
 #define MAX_DATA_LENGTH (32U)
 
-#define DALI_RX_TASK_STACKSIZE (2*configMINIMAL_STACK_SIZE)
-#define DALI_RX_PRIORITY (tskIDLE_PRIORITY +3U)
+#define DALI_RX_TASK_STACKSIZE (2 * configMINIMAL_STACK_SIZE)
+#define DALI_RX_PRIORITY (tskIDLE_PRIORITY + 3U)
 
 #define NOTIFY_CAPTURE (0x01)
-#define NOTIFY_MATCH   (0x02)
+#define NOTIFY_MATCH (0x02)
 
-#define QUEUE_SIZE (3U)
+#define QUEUE_SIZE (5U)
 
 enum rx_status {
     IDLE = 0,
@@ -43,9 +42,9 @@ static const struct _rx_timing {
     uint32_t min_stop_condition_us;
     uint32_t min_failure_condition_us;
 } rx_timing = {
-    .min_half_bit_begin_us = 333,   // Table 18
-    .max_half_bit_begin_us = 500,
-    .min_half_bit_inside_us = 333,  // Table 19
+    .min_half_bit_begin_us = 333, // Table 18
+    .max_half_bit_begin_us = (500 + 5),
+    .min_half_bit_inside_us = 333, // Table 19
     .max_half_bit_inside_us = 500,
     .min_full_bit_inside_us = 666,
     .max_full_bit_inside_us = 1000,
@@ -62,7 +61,7 @@ struct _rx {
     bool last_data_bit;
     TaskHandle_t task_handle;
     QueueHandle_t queue_handle;
-} rx = {0};
+} rx = { 0 };
 
 // external references from tx module
 extern void dali_tx_init(void);
@@ -99,7 +98,8 @@ void dali_rx_irq_period_match_callback(void)
 static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
 {
     if ((time_difference_us > rx_timing.max_half_bit_begin_us) ||
-        (time_difference_us < rx_timing.min_half_bit_begin_us)) return false;
+        (time_difference_us < rx_timing.min_half_bit_begin_us))
+        return false;
     return true;
 }
 
@@ -112,12 +112,11 @@ void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
         rx.frame.timestamp = xTaskGetTickCount();
     }
     if (rx.status == LOW) {
-        rx.frame.timestamp = xTaskGetTickCount() - (rx_timing.min_failure_condition_us/1000);
+        rx.frame.timestamp = xTaskGetTickCount() - (rx_timing.min_failure_condition_us / 1000);
     }
-    LOG_PRINTF(LOG_LOW, "error: %d timing: %d us", code, time_us);
     rx.frame.is_status = true;
     rx.frame.length = code;
-    rx.frame.data = (time_us & 0xffffff)<<8 | bit;
+    rx.frame.data = (time_us & 0xffffff) << 8 | bit;
     xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     rx.status = ERROR_IN_FRAME;
 }
@@ -125,14 +124,16 @@ void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
 static bool is_valid_halfbit_inside_timing(const uint32_t time_difference_us)
 {
     if ((time_difference_us > rx_timing.max_half_bit_inside_us) ||
-        (time_difference_us < rx_timing.min_half_bit_inside_us)) return false;
+        (time_difference_us < rx_timing.min_half_bit_inside_us))
+        return false;
     return true;
 }
 
 static bool is_valid_fullbit_inside_timing(const uint32_t time_difference_us)
 {
     if ((time_difference_us > rx_timing.max_full_bit_inside_us) ||
-        (time_difference_us < rx_timing.min_full_bit_inside_us)) return false;
+        (time_difference_us < rx_timing.min_full_bit_inside_us))
+        return false;
     return true;
 }
 
@@ -148,18 +149,17 @@ static void check_start_timing(void)
     }
     if (rx.status == START_BIT_START) {
         generate_error_frame(DALI_ERROR_RECEIVE_START_TIMING, rx.frame.length, time_difference_us);
-    }
-    else {
+    } else {
         generate_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
     }
 }
 
-static enum rx_status check_inside_timing(void) 
+static enum rx_status check_inside_timing(void)
 {
     const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
     if (is_valid_halfbit_inside_timing(time_difference_us)) {
         return DATA_BIT_START;
-    } 
+    }
     if (is_valid_fullbit_inside_timing(time_difference_us)) {
         rx.last_data_bit = !rx.last_data_bit;
         rx.frame.data = (rx.frame.data << 1U) | rx.last_data_bit;
@@ -172,10 +172,9 @@ static enum rx_status check_inside_timing(void)
 
 static void finish_frame(void)
 {
-    LOG_PRINTF(LOG_LOW, "length: %d data: 0x%08x", rx.frame.length, rx.frame.data);
     const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     if (result == errQUEUE_FULL) {
-        LOG_ASSERT(false);
+        configASSERT(false);
     }
 }
 
@@ -184,7 +183,7 @@ void rx_schedule_frame(void)
     uint32_t min_settling_time = tx_get_settling_time();
     uint32_t min_start_count = min_settling_time + rx.last_edge_count;
     const uint32_t timer_now = board_dali_rx_get_count();
-    if (timer_now >  min_start_count) {
+    if (timer_now > min_start_count) {
         dali_tx_start_send();
         return;
     }
@@ -209,11 +208,10 @@ static void manage_tx(void)
 static void rx_reset(void)
 {
     rx.status = IDLE;
-    rx.frame = (struct dali_rx_frame) {0};
+    rx.frame = (struct dali_rx_frame){ 0 };
 }
 
-
-static void set_new_status (enum rx_status new_state)
+static void set_new_status(enum rx_status new_state)
 {
     if (rx.status != ERROR_IN_FRAME) {
         rx.status = new_state;
@@ -222,100 +220,98 @@ static void set_new_status (enum rx_status new_state)
 
 static void process_capture_notification(void)
 {
-    LOG_PRINTF(LOG_LOW,"capture %d", rx.status);
     switch (rx.status) {
-        case IDLE:
-            if (board_dali_rx_pin()==DALI_RX_ACTIVE) {
-                set_new_status(START_BIT_START);
-                rx.last_data_bit = true;
-                rx.frame.timestamp = xTaskGetTickCount();
+    case IDLE:
+        if (board_dali_rx_pin() == DALI_RX_ACTIVE) {
+            set_new_status(START_BIT_START);
+            rx.last_data_bit = true;
+            rx.frame.timestamp = xTaskGetTickCount();
+        }
+        break;
+    case START_BIT_START:
+        check_start_timing();
+        set_new_status(START_BIT_INSIDE);
+        break;
+    case START_BIT_INSIDE:
+        set_new_status(check_inside_timing());
+        break;
+    case DATA_BIT_START:
+        check_start_timing();
+        set_new_status(DATA_BIT_INSIDE);
+        break;
+    case DATA_BIT_INSIDE:
+        set_new_status(check_inside_timing());
+        break;
+    case ERROR_IN_FRAME:
+        break;
+    case LOW:
+        if (board_dali_rx_pin() == DALI_RX_IDLE) {
+            enum dali_error code = DALI_ERROR_RECEIVE_START_TIMING;
+            if (rx.frame.length > 1) {
+                code = DALI_ERROR_RECEIVE_DATA_TIMING;
             }
-            break;
-        case START_BIT_START:
-            check_start_timing();
-            set_new_status(START_BIT_INSIDE);
-            break;
-        case START_BIT_INSIDE:
-            set_new_status(check_inside_timing());
-            break;
-        case DATA_BIT_START:
-            check_start_timing();
-            set_new_status(DATA_BIT_INSIDE);
-            break;
-        case DATA_BIT_INSIDE:
-            set_new_status(check_inside_timing());
-            break;
-        case ERROR_IN_FRAME:
-            break;
-        case LOW:
-            if (board_dali_rx_pin() == DALI_RX_IDLE) {
-                enum dali_error code = DALI_ERROR_RECEIVE_START_TIMING;
-                if (rx.frame.length > 1) {
-                    code = DALI_ERROR_RECEIVE_DATA_TIMING;
-                }
-                const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
-                generate_error_frame(code, rx.frame.length, time_difference_us);
-                manage_tx();
-                rx_reset();
-            }
-            break;
-        case FAILURE:
-            if (board_dali_rx_pin() == DALI_RX_IDLE) {
-                rx.frame.timestamp = xTaskGetTickCount();
-                const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
-                generate_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
-                manage_tx();
-                rx_reset();
-            }
-            break;
-        default:
-            LOG_ASSERT(false);
-            break;
+            const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
+            generate_error_frame(code, rx.frame.length, time_difference_us);
+            manage_tx();
+            rx_reset();
+        }
+        break;
+    case FAILURE:
+        if (board_dali_rx_pin() == DALI_RX_IDLE) {
+            rx.frame.timestamp = xTaskGetTickCount();
+            const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
+            generate_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
+            manage_tx();
+            rx_reset();
+        }
+        break;
+    default:
+        configASSERT(false);
+        break;
     }
     rx.last_edge_count = rx.edge_count;
 }
 
 static void process_match_notification(void)
 {
-    LOG_PRINTF(LOG_LOW,"match %d", rx.status);
     if (board_dali_rx_pin() == DALI_RX_IDLE) {
         switch (rx.status) {
-            case IDLE:
-                return;
-            case START_BIT_START:
-            case START_BIT_INSIDE:
-            case DATA_BIT_START:
-            case DATA_BIT_INSIDE:
-                manage_tx();
-                finish_frame();
-                rx_reset();
-                return;
-            case LOW:
-            case FAILURE:
-            case ERROR_IN_FRAME:
-                manage_tx();
-                rx_reset();
-                return;
-            default:
-                LOG_ASSERT(false);
-                return;
+        case IDLE:
+            return;
+        case START_BIT_START:
+        case START_BIT_INSIDE:
+        case DATA_BIT_START:
+        case DATA_BIT_INSIDE:
+            manage_tx();
+            finish_frame();
+            rx_reset();
+            return;
+        case LOW:
+        case FAILURE:
+        case ERROR_IN_FRAME:
+            manage_tx();
+            rx_reset();
+            return;
+        default:
+            configASSERT(false);
+            return;
         }
     }
     switch (rx.status) {
-        case LOW:
-            generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
-            rx.status = FAILURE;
-            return;
-        case FAILURE:
-            return;
-        default:
-            board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
-            board_dali_rx_stopbit_match_enable(true);
-            rx.status = LOW;
-    } 
+    case LOW:
+        generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
+        rx.status = FAILURE;
+        return;
+    case FAILURE:
+        return;
+    default:
+        board_dali_rx_set_stopbit_match(rx.last_edge_count + rx_timing.min_failure_condition_us);
+        board_dali_rx_stopbit_match_enable(true);
+        rx.status = LOW;
+    }
 }
 
-__attribute__((noreturn)) static void rx_task(__attribute__((unused)) void *dummy)
+__attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dummy)
 {
     while (true) {
         uint32_t notifications;
@@ -337,40 +333,36 @@ bool dali_101_get(struct dali_rx_frame* frame, TickType_t wait)
     return (rc == pdPASS);
 }
 
-static void dali_rx_init(void) 
+static void dali_rx_init(void)
 {
-   static StaticTask_t task_buffer;
-   static StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
-   LOG_TEST(rx.task_handle = xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, 
-        NULL, DALI_RX_PRIORITY, task_stack, &task_buffer));
-    
-    static uint8_t queue_storage [QUEUE_SIZE * sizeof(struct dali_rx_frame)];
+    static StaticTask_t task_buffer;
+    static StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
+    rx.task_handle =
+        xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, NULL, DALI_RX_PRIORITY, task_stack, &task_buffer);
+
+    static uint8_t queue_storage[QUEUE_SIZE * sizeof(struct dali_rx_frame)];
     static StaticQueue_t queue_buffer;
-    rx.queue_handle = xQueueCreateStatic(
-        QUEUE_SIZE, sizeof(struct dali_rx_frame), queue_storage, &queue_buffer);
-    LOG_ASSERT(rx.queue_handle);
+    rx.queue_handle = xQueueCreateStatic(QUEUE_SIZE, sizeof(struct dali_rx_frame), queue_storage, &queue_buffer);
+    configASSERT(rx.queue_handle);
 
     board_dali_rx_timer_setup();
 
-    if (board_dali_rx_pin()==DALI_RX_IDLE) {
+    if (board_dali_rx_pin() == DALI_RX_IDLE) {
         rx.status = IDLE;
-    }
-    else {
+    } else {
         rx.status = FAILURE;
     }
 }
 
 void dali_101_request_status_frame(void)
 {
-    const struct dali_rx_frame status_frame = {
-        .is_status = true,
-        .timestamp = xTaskGetTickCount(),
-        .length = (rx.status == ERROR_IN_FRAME) ? rx.frame.length : DALI_SYSTEM_IDLE,
-        .data = 0
-    };
+    const struct dali_rx_frame status_frame = { .is_status = true,
+                                                .timestamp = xTaskGetTickCount(),
+                                                .length =
+                                                    (rx.status == ERROR_IN_FRAME) ? rx.frame.length : DALI_SYSTEM_IDLE,
+                                                .data = 0 };
     xQueueSendToBack(rx.queue_handle, &status_frame, 0);
 }
-
 
 void dali_101_init(void)
 {

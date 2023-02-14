@@ -6,12 +6,11 @@
 #include "task.h"
 #include "queue.h"
 
-#include "lpc11xx.h"    // UART registers
+#include "lpc11xx.h" // UART registers
 #include "bitfields.h"
 
 #include "dali_101_lpc/dali_101.h"
 #include "board/board.h"
-#include "log/log.h"
 #include "main.h"
 #include "version.h"
 #include "serial.h"
@@ -38,14 +37,13 @@ struct _serial {
     char rx_buffer[SERIAL_BUFFER_SIZE];
     uint8_t buffer_index;
     TaskHandle_t task_handle;
-    QueueHandle_t queue_handle;    
-} serial = {0}; 
+    QueueHandle_t queue_handle;
+} serial = { 0 };
 
 void serial_print_head(void)
 {
     printf("DALI USB interface - SevenLab 2022\r\n");
     printf("Version %d.%d.%d \r\n", MAJOR_VERSION_SOFTWARE, MINOR_VERSION_SOFTWARE, BUGFIX_VERSION_SOFTWARE);
-    printf(LOG_BUILD_VERSION);
     printf("\r\n");
 }
 
@@ -61,13 +59,10 @@ static void buffer_reset(void)
     serial.rx_buffer[serial.buffer_index] = '\000';
 }
 
-static void print_parameter_error (void)
+static void print_parameter_error(void)
 {
     const struct dali_rx_frame frame = {
-        .is_status = true,
-        .timestamp = xTaskGetTickCount(),
-        .length = DALI_ERROR_BAD_COMMAND,
-        .data = 0
+        .is_status = true, .timestamp = xTaskGetTickCount(), .length = DALI_ERROR_BAD_COMMAND, .data = 0
     };
     serial_print_frame(frame);
 }
@@ -77,15 +72,12 @@ static void send_command(bool send_twice)
     int priority;
     unsigned int length;
     unsigned long data;
-    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*) &priority, &length, &data);
-    if (n != 3)  {
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*)&priority, &length, &data);
+    if (n != 3) {
         print_parameter_error();
     }
-    const struct dali_tx_frame frame = { 
-        .repeat = send_twice ? 1 : 0,
-        .priority = priority,
-        .length = length,
-        .data = data 
+    const struct dali_tx_frame frame = {
+        .repeat = send_twice ? 1 : 0, .priority = priority, .length = length, .data = data
     };
     xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
@@ -96,21 +88,11 @@ static void send_repeated_command(void)
     unsigned int length;
     unsigned int repeat;
     unsigned long data;
-    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG],
-           "%d %x %x %lx",
-           &priority,
-           &repeat,
-           &length,
-           &data);
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %x %lx", &priority, &repeat, &length, &data);
     if (n != 4) {
         print_parameter_error();
     }
-    const struct dali_tx_frame frame = { 
-        .repeat = repeat,
-        .priority = priority,
-        .length = length,
-        .data = data 
-    };
+    const struct dali_tx_frame frame = { .repeat = repeat, .priority = priority, .length = length, .data = data };
     xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
 
@@ -124,7 +106,7 @@ static void next_sequence(void)
     dali_101_sequence_next(period_us);
 }
 
-__attribute__((noreturn)) static void serial_task(__attribute__((unused))void* dummy)
+__attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* dummy)
 {
     while (true) {
         uint32_t notifications;
@@ -213,8 +195,8 @@ bool serial_get(struct dali_tx_frame* frame, TickType_t wait)
 
 static void serial_initialize_uart_interrupt(void)
 {
-    LPC_UART->IER |= 0x01; 
-    NVIC_SetPriority(UART_IRQn,1);
+    LPC_UART->IER |= 0x01;
+    NVIC_SetPriority(UART_IRQn, 1);
     NVIC_EnableIRQ(UART_IRQn);
 }
 
@@ -222,15 +204,15 @@ void serial_init(void)
 {
     static StaticTask_t task_buffer;
     static StackType_t task_stack[SERIAL_TASK_STACKSIZE];
-    serial.task_handle = xTaskCreateStatic(serial_task,
-        "SERIAL", SERIAL_TASK_STACKSIZE, NULL, SERIAL_PRIORITY, task_stack, &task_buffer);
-    LOG_ASSERT(serial.task_handle);
+    serial.task_handle = xTaskCreateStatic(
+        serial_task, "SERIAL", SERIAL_TASK_STACKSIZE, NULL, SERIAL_PRIORITY, task_stack, &task_buffer);
+    configASSERT(serial.task_handle);
 
-    static uint8_t queue_storage [SERIAL_QUEUE_LENGTH * sizeof(struct dali_tx_frame)];
+    static uint8_t queue_storage[SERIAL_QUEUE_LENGTH * sizeof(struct dali_tx_frame)];
     static StaticQueue_t queue_buffer;
-    serial.queue_handle = xQueueCreateStatic(
-        SERIAL_QUEUE_LENGTH, sizeof(struct dali_tx_frame), queue_storage, &queue_buffer);
-    LOG_ASSERT(serial.queue_handle);
+    serial.queue_handle =
+        xQueueCreateStatic(SERIAL_QUEUE_LENGTH, sizeof(struct dali_tx_frame), queue_storage, &queue_buffer);
+    configASSERT(serial.queue_handle);
 
     serial_initialize_uart_interrupt();
 }
