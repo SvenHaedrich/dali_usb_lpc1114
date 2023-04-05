@@ -9,10 +9,8 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 set(CMAKE_CROSSCOMPILING 1)
 project(dali_usb C ASM)
 
-include(arm-gcc-toolchain.cmake)
-
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/source/system/link_lpc1114_302.ld)
-set(COMMON_FLAGS "-Wall -g3 -std=gnu11 -mcpu=cortex-m0 -ffunction-sections")
+set(COMMON_FLAGS "-Wall -Wextra -g3 -std=gnu11 -mcpu=cortex-m0 -ffunction-sections")
 
 set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")
@@ -25,7 +23,9 @@ add_link_options(-T ${LINKER_SCRIPT})
 add_link_options(-Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map)
 add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mthumb)
 add_link_options(-Wl,--start-group -lc -lm -Wl,--end-group)
+# add_link_options(-Wl,--no-warn-rwx-segment)
 
+# TODO make dali 101 independent sub-project for CMake
 file(GLOB_RECURSE SOURCE_FILES
         "source/*.c"
         "source/system/start_lpc1114.s"
