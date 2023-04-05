@@ -56,7 +56,7 @@ void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer,
     *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 
-void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName)
+void vApplicationStackOverflowHook(__attribute__((unused)) TaskHandle_t xTask, __attribute__((unused)) char* pcTaskName)
 {
     /* Run time stack overflow checking is performed if
     configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
@@ -83,7 +83,7 @@ void vApplicationMallocFailedHook(void)
         ;
 }
 
-void vAssertFailed(const char* file, uint16_t line)
+void vAssertFailed(__attribute__((unused)) const char* file, __attribute__((unused)) uint16_t line)
 {
     board_error();
     while (true)
