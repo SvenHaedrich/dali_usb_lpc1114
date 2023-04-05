@@ -38,10 +38,10 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
 
 int main(void)
 {
-    serial_print_head();
     board_init();
     dali_101_init();
     serial_init();
+    serial_print_head();
 
     static StaticTask_t task_buffer;
     static StackType_t task_stack[MAIN_TASK_STACKSIZE];
