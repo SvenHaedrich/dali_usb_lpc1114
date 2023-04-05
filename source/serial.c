@@ -200,6 +200,26 @@ static void serial_initialize_uart_interrupt(void)
     NVIC_EnableIRQ(UART_IRQn);
 }
 
+static void serial_uart_init(void)
+{
+    // see sample 13.5.15.1.2 from user manual
+    // uart clock = 12 MHz
+    // desired baudrate = 115200
+    // DIVADDVAL = 5
+    // MULVAL = 8
+    // DLM = 0
+    // DLL = 4
+    LPC_UART->LCR |= U0LCR_DLAB;
+    LPC_UART->DLM = 0;
+    LPC_UART->DLL = 4;
+    LPC_UART->LCR &= ~U0LCR_DLAB;
+    LPC_UART->FDR = (8 << 4) | (5);
+
+    LPC_UART->LCR = (3 << U0LCR_WLS_SHIFT) & U0LCR_WLS_MASK;
+    LPC_UART->FCR = U0FCR_FIFOEN;
+    LPC_UART->TER = U0TER_TXEN;
+}
+
 void serial_init(void)
 {
     static StaticTask_t task_buffer;
@@ -214,5 +234,6 @@ void serial_init(void)
         xQueueCreateStatic(SERIAL_QUEUE_LENGTH, sizeof(struct dali_tx_frame), queue_storage, &queue_buffer);
     configASSERT(serial.queue_handle);
 
+    serial_uart_init();
     serial_initialize_uart_interrupt();
 }

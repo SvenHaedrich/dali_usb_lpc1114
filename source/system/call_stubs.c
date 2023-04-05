@@ -156,23 +156,3 @@ int _execve(__attribute__((unused)) char* name, __attribute__((unused)) char** a
     errno = ENOMEM;
     return -1;
 }
-
-static void __attribute__((constructor)) uart_init(void)
-{
-    // see sample 13.5.15.1.2 from user manual
-    // uart clock = 12 MHz
-    // desired baudrate = 115200
-    // DIVADDVAL = 5
-    // MULVAL = 8
-    // DLM = 0
-    // DLL = 4
-    LPC_UART->LCR |= U0LCR_DLAB;
-    LPC_UART->DLM = 0;
-    LPC_UART->DLL = 4;
-    LPC_UART->LCR &= ~U0LCR_DLAB;
-    LPC_UART->FDR = (8 << 4) | (5);
-
-    LPC_UART->LCR = (3 << U0LCR_WLS_SHIFT) & U0LCR_WLS_MASK;
-    LPC_UART->FCR = U0FCR_FIFOEN;
-    LPC_UART->TER = U0TER_TXEN;
-}
