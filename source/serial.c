@@ -42,7 +42,7 @@ struct _serial {
 
 void serial_print_head(void)
 {
-    printf("DALI USB interface - SevenLab 2022\r\n");
+    printf("DALI USB interface - SevenLab 2023\r\n");
     printf("Version %d.%d.%d \r\n", MAJOR_VERSION_SOFTWARE, MINOR_VERSION_SOFTWARE, BUGFIX_VERSION_SOFTWARE);
     printf("\r\n");
 }
