@@ -4,8 +4,8 @@ ENTRY(Reset_Handler)
 /* === stack and heap definitions =============== */
 _estack = 0x10002000;	/* end of "RAM" Ram type memory */
 
-_Min_Heap_Size = 0x180;	/* required amount of heap  */
-_Min_Stack_Size = 0x220;	/* required amount of stack */
+_Min_Heap_Size = 0x100;	/* required amount of heap  */
+_Min_Stack_Size = 0x200;	/* required amount of stack */
 
 
 /* === memory layout ============================ */
@@ -80,26 +80,6 @@ SECTIONS
 		. = ALIGN(4);
 	} >flash
   
-  	.init_array :
-  	{
-		. = ALIGN(4);
-    	PROVIDE_HIDDEN (__init_array_start = .);
-    	KEEP (*(SORT(.init_array.*)))
-    	KEEP (*(.init_array*))
-    	PROVIDE_HIDDEN (__init_array_end = .);
-		. = ALIGN(4);
-  	} >flash
-  
-  	.fini_array :
-  	{
-		. = ALIGN(4);
-    	PROVIDE_HIDDEN (__fini_array_start = .);
-    	KEEP (*(SORT(.fini_array.*)))
-    	KEEP (*(.fini_array*))
-    	PROVIDE_HIDDEN (__fini_array_end = .);
-		. = ALIGN(4);
-  	} >flash
-
 	/* --- data sections - into ram --- */
 	_sidata = LOADADDR(.data);
 

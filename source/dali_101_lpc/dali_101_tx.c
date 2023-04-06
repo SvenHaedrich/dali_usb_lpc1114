@@ -27,8 +27,8 @@ static const struct _dali_timing {
 struct _tx {
     uint32_t count_now;
     uint32_t count[COUNT_ARRAY_SIZE];
-    int_fast8_t index_next;
-    int_fast8_t index_max;
+    uint_fast8_t index_next;
+    uint_fast8_t index_max;
     bool state_now;
     bool buffer_is_free;
     uint8_t repeat;

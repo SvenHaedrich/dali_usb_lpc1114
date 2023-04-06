@@ -1,3 +1,6 @@
+// TODO split up the board file into led and dali
+// TODO make board a library for cmake
+
 #include <stdbool.h>
 #include <string.h>
 
@@ -354,5 +357,5 @@ void board_init(void)
 
 void board_system_init(void)
 {
-    board_setup_clocking();
+    board_setup_clocking(); // TODO make at least the system clock init part of the pre-main init
 }

@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
 
-
 # Configure the project
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_COMPILER_WORKS 1)
@@ -9,10 +8,8 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 set(CMAKE_CROSSCOMPILING 1)
 project(dali_usb C ASM)
 
-include(arm-gcc-toolchain.cmake)
-
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/source/system/link_lpc1114_302.ld)
-set(COMMON_FLAGS "-Wall -g3 -std=gnu11 -mcpu=cortex-m0 -ffunction-sections")
+set(COMMON_FLAGS "-Wall -Wextra -g3 -std=gnu11 -mcpu=cortex-m0 -ffunction-sections")
 
 set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")
@@ -26,6 +23,7 @@ add_link_options(-Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map)
 add_link_options(-Wl,--gc-sections -static --specs=nano.specs -mthumb)
 add_link_options(-Wl,--start-group -lc -lm -Wl,--end-group)
 
+# TODO make dali 101 independent sub-project for CMake
 file(GLOB_RECURSE SOURCE_FILES
         "source/*.c"
         "source/system/start_lpc1114.s"
@@ -48,13 +46,8 @@ include_directories(
         thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0
         )
 
-# set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
-# set(FREERTOS_PORT "GCC_ARM_C0")
-# add_subdirectory("thirdparty/FreeRTOS-Kernel")
-
 add_executable(${PROJECT_NAME}.elf ${SOURCE_FILES} ${LINKER_SCRIPT})
 target_link_libraries(${PROJECT_NAME}.elf m)
-# target_link_libraries(${PROJECT_NAME} PRIVATE freertos)
 
 set(BIN_FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin)
 add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
