@@ -181,7 +181,7 @@ void UART_IRQHandler(void)
         default:
             serial.rx_buffer[serial.buffer_index] = c;
         }
-        if (serial.buffer_index <= (SERIAL_BUFFER_SIZE - 1))
+        if (serial.buffer_index < (SERIAL_BUFFER_SIZE - 1))
             serial.buffer_index++;
         portYIELD_FROM_ISR(higher_priority_woken);
     }
