@@ -45,8 +45,7 @@ struct dali_tx_frame {
 };
 
 void dali_101_init(void);
-bool dali_101_send_is_ready(void);
-void dali_101_send (const struct dali_tx_frame frame);
+void dali_101_send(const struct dali_tx_frame frame);
 bool dali_101_get(struct dali_rx_frame* frame, TickType_t wait);
 void dali_101_sequence_start(void);
 void dali_101_sequence_next(uint32_t period_us);

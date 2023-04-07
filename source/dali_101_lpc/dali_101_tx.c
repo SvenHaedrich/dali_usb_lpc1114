@@ -149,11 +149,6 @@ uint32_t tx_get_settling_time(void)
     return tx.min_settling_time;
 }
 
-bool dali_101_send_is_ready(void)
-{
-    return tx.buffer_is_free;
-}
-
 void dali_101_send(const struct dali_tx_frame frame)
 {
     tx_reset();
