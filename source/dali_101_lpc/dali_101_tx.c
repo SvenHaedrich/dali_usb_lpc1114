@@ -120,8 +120,8 @@ void dali_tx_irq_callback(void)
         board_dali_tx_timer_next(tx.count[tx.index_next++], DISABLE_TOGGLE);
         return;
     }
-    board_dali_tx_timer_stop();
     board_dali_tx_set(DALI_TX_IDLE);
+    board_dali_tx_timer_stop();
 }
 
 void dali_tx_start_send(void)
@@ -171,7 +171,8 @@ void dali_101_sequence_start(void)
 {
     tx_reset();
     tx.buffer_is_free = false;
-    tx.min_settling_time = dali_timing.settling_time_us[DALI_PRIORITY_1];
+    //    tx.min_settling_time = dali_timing.settling_time_us[DALI_PRIORITY_1];
+    tx.min_settling_time = 0;
     tx.repeat = 0;
 }
 
@@ -186,10 +187,11 @@ void dali_101_sequence_next(uint32_t period_us)
 
 void dali_101_sequence_execute(void)
 {
-    if (tx.index_next >= tx.index_max) {
+    if (tx.index_next >= tx.index_max || tx.index_max == 0) {
         generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
         return;
     }
+    tx.index_max--;
     dali_tx_start_send();
 }
 
