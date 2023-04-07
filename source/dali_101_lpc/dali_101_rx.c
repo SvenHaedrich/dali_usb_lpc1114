@@ -358,8 +358,7 @@ void dali_101_request_status_frame(void)
 {
     const struct dali_rx_frame status_frame = { .is_status = true,
                                                 .timestamp = xTaskGetTickCount(),
-                                                .length =
-                                                    (rx.status == ERROR_IN_FRAME) ? rx.frame.length : DALI_SYSTEM_IDLE,
+                                                .length = (rx.status == IDLE) ? DALI_OK : DALI_SYSTEM_FAILURE,
                                                 .data = 0 };
     xQueueSendToBack(rx.queue_handle, &status_frame, 0);
 }
