@@ -102,11 +102,11 @@ Execute a defined sequence.
 | Priority | Meaning                   |
 |----------|---------------------------|
 |        0 | Backward frame priority   |
-|        1 | Forwars frame priority 1  |
-|        2 | Forwars frame priority 2  |
-|        3 | Forwars frame priority 3  |
-|        4 | Forwars frame priority 4  |
-|        5 | Forwars frame priority 5  |
+|        1 | Forward frame priority 1  |
+|        2 | Forward frame priority 2  |
+|        3 | Forward frame priority 3  |
+|        4 | Forward frame priority 4  |
+|        5 | Forward frame priority 5  |
 
 ### Results
 
