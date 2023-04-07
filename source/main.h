@@ -1,8 +1,5 @@
 #pragma once
 
-/* Exported functions prototypes ---------------------------------------------*/
-_Noreturn void Error_Handler(void);
-
 /* Private defines -----------------------------------------------------------*/
 #define LED_SERIAL_RX GPIO_PIN_2
 #define LED_SERIAL_TX GPIO_PIN_1
