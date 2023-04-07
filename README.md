@@ -169,31 +169,24 @@ Status Codes
 
 Get compiler
 
-```bash
-sudo apt-get install gcc-arm-none-eabi
-```
+    sudo apt-get install gcc-arm-none-eabi
+
 Get cmake
 
-```bash
-sudo apt-get install cmake
-```
+    sudo apt-get install cmake
 
 Debug build
-```bash
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DLOGBACKEND_RTT=ON
-cmake --build build --clean-first
-```
+
+Assuming that `arm-none-eabi-gcc` was installed to `/usr/bin`
+
+    cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DLOGBACKEND_RTT=ON -DCMAKE_C_COMPILER=/usr/bin/arm-none-eabi-gcc
+    cmake --build build --clean-first
 
 Release build
-```bash
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-cmake --build build --clean-first
-```
 
-If your arm-none-eabi gcc is not in your path, add the following to your initial cmake call:
-```bash
--DARM_NONE_EABI_TOOLCHAIN_BIN_PATH=/$PATH_TO_TOOLCHAIN/bin/
-```
+    cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/arm-none-eabi-gcc
+    cmake --build build --clean-first
+
 
 ### Hardware Configuration
 
