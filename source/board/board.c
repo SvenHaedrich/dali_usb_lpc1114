@@ -332,8 +332,8 @@ void board_flash_tx(void)
 
 static void board_setup_IRQs(void)
 {
-    NVIC_SetPriority(TIMER_32_0_IRQn, 1);
-    NVIC_SetPriority(TIMER_32_1_IRQn, 0);
+    NVIC_SetPriority(TIMER_32_0_IRQn, IRQ_PRIO_ELEV);
+    NVIC_SetPriority(TIMER_32_1_IRQn, IRQ_PRIO_HIGH);
     NVIC_EnableIRQ(TIMER_32_0_IRQn);
     NVIC_EnableIRQ(TIMER_32_1_IRQn);
     __enable_irq();

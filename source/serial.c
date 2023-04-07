@@ -199,7 +199,7 @@ bool serial_get(struct dali_tx_frame* frame, TickType_t wait)
 static void serial_initialize_uart_interrupt(void)
 {
     LPC_UART->IER |= 0x01;
-    NVIC_SetPriority(UART_IRQn, 1);
+    NVIC_SetPriority(UART_IRQn, IRQ_PRIO_NORM);
     NVIC_EnableIRQ(UART_IRQn);
 }
 
