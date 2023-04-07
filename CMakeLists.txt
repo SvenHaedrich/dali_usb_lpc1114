@@ -51,8 +51,5 @@ target_link_libraries(${PROJECT_NAME}.elf m)
 
 set(BIN_FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin)
 add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
-        COMMAND ${CMAKE_SIZE_UTIL} --format=berkely $<TARGET_FILE:${PROJECT_NAME}.elf>)
-
-add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
         COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${PROJECT_NAME}.elf> ${BIN_FILE}
 )
