@@ -25,3 +25,6 @@
 [submodule "tests/scripts/dali_py"]
 	path = tests/scripts/dali_py
 	url = git@github.com:SvenHaedrich/dali_py.git
+[submodule "source/dali_101_lpc"]
+	path = source/dali_101_lpc
+	url = git@github.com:SvenHaedrich/dali_101_lpc.git
