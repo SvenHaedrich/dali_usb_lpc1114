@@ -6,8 +6,8 @@
 #include "task.h"
 #include "queue.h"
 
-#include "board/board.h" // interface to hardware abstraction
-#include "dali_101.h"    // self include for consistency
+#include "board/dali.h" // interface to hardware abstraction
+#include "dali_101.h"   // self include for consistency
 
 #define MAX_DATA_LENGTH (32U)
 
