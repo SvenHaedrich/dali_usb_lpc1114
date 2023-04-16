@@ -9,8 +9,8 @@
 
 #include "lpc11xx.h"
 #include "bitfields.h"
-#include "../main.h"
-#include "../dali_101_lpc/dali_101.h" // irq callbacks
+#include "main.h"
+#include "dali_101_lpc/dali_101.h" // irq callbacks
 #include "board.h"
 
 #define HEARTBEAT_PERIOD_MS (100U)
