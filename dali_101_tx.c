@@ -3,8 +3,8 @@
 
 #include "FreeRTOS.h" // TickType_t in dali_101.h
 
-#include "board/board.h" // interface to hardware abstraction
-#include "dali_101.h"    // self-include for consistency
+#include "board/dali.h" // interface to hardware abstraction
+#include "dali_101.h"   // self-include for consistency
 
 #define MAX_DATA_LENGTH (32U)
 #define COUNT_ARRAY_SIZE (2U + MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
