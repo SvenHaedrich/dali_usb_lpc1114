@@ -6,6 +6,7 @@
 #include "task.h"
 #include "queue.h"
 
+#include "log/log.h"    // logging
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self include for consistency
 
@@ -16,6 +17,7 @@
 
 #define NOTIFY_CAPTURE (0x01)
 #define NOTIFY_MATCH (0x02)
+#define NOTIFY_PRIORITY (0x04)
 
 #define QUEUE_SIZE (5U)
 
@@ -92,7 +94,10 @@ void dali_rx_irq_stopbit_match_callback(void)
 
 void dali_rx_irq_period_match_callback(void)
 {
-    dali_tx_start_send();
+    BaseType_t higher_priority_woken = pdFALSE;
+    xTaskNotifyFromISR(rx.task_handle, NOTIFY_PRIORITY, eSetBits, &higher_priority_woken);
+    board_dali_rx_stopbit_match_enable(false);
+    portYIELD_FROM_ISR(higher_priority_woken);
 }
 
 static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
@@ -172,6 +177,7 @@ static enum rx_status check_inside_timing(void)
 
 static void finish_frame(void)
 {
+    log_debug("{%08x-%02x %08x}", rx.frame.timestamp, rx.frame.length, rx.frame.data);
     const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     if (result == errQUEUE_FULL) {
         configASSERT(false);
@@ -322,6 +328,9 @@ __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dumm
             }
             if (notifications & NOTIFY_MATCH) {
                 process_match_notification();
+            }
+            if (notifications & NOTIFY_PRIORITY) {
+                dali_tx_start_send();
             }
         }
     }
