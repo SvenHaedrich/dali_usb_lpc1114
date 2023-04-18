@@ -3,6 +3,7 @@
 
 #include "FreeRTOS.h" // TickType_t in dali_101.h
 
+#include "log/log.h"    // logging
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self-include for consistency
 
@@ -120,14 +121,17 @@ void dali_tx_irq_callback(void)
         board_dali_tx_timer_next(tx.count[tx.index_next++], DISABLE_TOGGLE);
         return;
     }
+    tx.index_max = 0;
     board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
 }
 
 void dali_tx_start_send(void)
 {
-    tx.index_next = 1;
-    board_dali_tx_timer_setup(tx.count[0]);
+    if (tx.index_max) {
+        tx.index_next = 1;
+        board_dali_tx_timer_setup(tx.count[0]);
+    }
 }
 
 bool dali_tx_is_idle(void)
@@ -151,6 +155,7 @@ uint32_t tx_get_settling_time(void)
 
 void dali_101_send(const struct dali_tx_frame frame)
 {
+    log_debug("%02d {%02x %08x}", frame.priority, frame.length, frame.data);
     tx_reset();
     tx.buffer_is_free = false;
     tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
