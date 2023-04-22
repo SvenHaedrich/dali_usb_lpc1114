@@ -1,6 +1,6 @@
 #pragma once
 #define DALI_101_MAJOR_VERSION (2)
-#define DALI_101_MINOR_VERSION (0)
+#define DALI_101_MINOR_VERSION (1)
 
 enum dali_tx_priority {
     DALI_BACKWARD_FRAME = 0,
