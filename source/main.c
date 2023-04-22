@@ -1,3 +1,13 @@
+/*
+      _____                      __          __
+     / ___/___ _   _____  ____  / /   ____ _/ /_
+     \__ \/ _ \ | / / _ \/ __ \/ /   / __ `/ __ \
+    ___/ /  __/ |/ /  __/ / / / /___/ /_/ / /_/ /
+   /____/\___/|___/\___/_/ /_/_____/\__,_/_.___/
+
+   DALI USB Adapter
+*/
+
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -12,8 +22,8 @@
 #if !(DALI_101_MAJOR_VERSION == 2U)
 #error "expected DALI 101 major version 2."
 #endif
-#if !(DALI_101_MINOR_VERSION == 0U)
-#error "expected DALI 101 minor version 0."
+#if !(DALI_101_MINOR_VERSION == 1U)
+#error "expected DALI 101 minor version 1."
 #endif
 
 #define MAIN_TASK_STACKSIZE (2 * configMINIMAL_STACK_SIZE)
