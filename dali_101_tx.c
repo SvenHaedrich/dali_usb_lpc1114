@@ -121,7 +121,6 @@ void dali_tx_irq_callback(void)
         board_dali_tx_timer_next(tx.count[tx.index_next++], DISABLE_TOGGLE);
         return;
     }
-    tx.index_max = 0;
     board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
 }
@@ -191,7 +190,6 @@ void dali_101_sequence_execute(void)
         generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
         return;
     }
-    tx.index_max--;
     dali_tx_start_send();
 }
 
