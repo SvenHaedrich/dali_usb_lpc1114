@@ -9,7 +9,6 @@
 
 #include "lpc11xx.h"
 #include "bitfields.h"
-#include "main.h"
 #include "dali_101_lpc/dali_101.h" // irq callbacks
 #include "dali.h"
 #include "board.h"

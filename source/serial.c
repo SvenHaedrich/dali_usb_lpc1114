@@ -11,7 +11,6 @@
 
 #include "dali_101_lpc/dali_101.h"
 #include "board/board.h"
-#include "main.h"
 #include "version.h"
 #include "serial.h"
 
