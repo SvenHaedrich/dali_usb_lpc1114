@@ -65,9 +65,9 @@ Send an identical DALI repeated times. The command syntax is
 If repeat is 0, the command will be sent once.
 Example 
 
-    T2 10 FF20
-    {00710129-10 0000ff20}
-    {00710146-10 0000ff20}
+    R2 1 10 FF20
+    {0134f7e5-10 0000ff20}
+    {0134f802-10 0000ff20}
 
 Send the command RESET to all control gears. Note that the connector will receive back the requested command.
 - - -
