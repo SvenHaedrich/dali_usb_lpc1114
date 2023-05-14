@@ -34,14 +34,26 @@ Status Codes
  |   A3 | Bad command                      | N/A                       |
 
 ```mermaid
-graph LR;
-    sequenceDiagram
-        participant USB
-        participant Device
-        participant DALI
-        USB ->> Device: `S1 10 FF00`
-        activate Device
-        Device -->> DALI: 0xFF00
-        Device -->> USB: `{00000011>10 FF00}
-        deactivate Device
+sequenceDiagram
+    participant USB
+    participant Device
+    participant DALI
+    USB ->> Device: `S1 10 FF00`
+    activate Device
+    Device -->> DALI: 0xFF00
+    Device -->> USB: `{00000011>10 FF00}
+    deactivate Device
+```
+
+```mermaid
+sequenceDiagram
+    participant USB
+    participant Device
+    participant DALI
+    USB ->> Device: `Q1 10 FF00`
+    activate Device
+    Device -->> DALI: 0xFF00
+    Device -->> USB: `{00000011>10 FF00}
+    Device -->> USB: `{00000015:81 0000}
+    deactivate Device
 ```
