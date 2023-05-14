@@ -35,11 +35,13 @@ Status Codes
 
 ```mermaid
 graph LR;
-    sequenceDiagram;
-    participant USB;
-    participant Device;
-    participant DALI;
-    USB ->> Device: `S1 10 FF00`;
-    Device -->> DALI: 0xFF00;
-    Device -->> USB: `{00000011>10 FF00};
+    sequenceDiagram
+    participant USB
+    participant Device
+    participant DALI
+    USB ->> Device: `S1 10 FF00`
+    activate Device
+    Device -->> DALI: 0xFF00
+    Device -->> USB: `{00000011>10 FF00}
+    deactivate Device
 ```
