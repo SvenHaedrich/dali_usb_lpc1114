@@ -54,6 +54,7 @@ sequenceDiagram
     activate Device
     Device -->> DALI: 0xFF00
     Device -->> USB: `{00000011>10 FF00}
+    Note over DALI: no one replies 
     Device -->> USB: `{00000015:81 0000}
     deactivate Device
 ```
