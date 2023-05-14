@@ -22,8 +22,8 @@ def test_version(serial_conn):
                     logger.debug(F"found Version information {major}.{minor}.{bugfix}")
                 except ValueError:
                     continue
-    assert major == 1
-    assert minor == 6
+    assert major == 2
+    assert minor == 0
     assert bugfix >= 0
 
 def test_8bit_loopback(serial_conn):
