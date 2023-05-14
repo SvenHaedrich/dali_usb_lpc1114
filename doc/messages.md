@@ -57,4 +57,11 @@ sequenceDiagram
     Note over DALI: no one replies 
     Device -->> USB: `{00000015:81 0000}
     deactivate Device
+    USB -->> Device: `Q1 10 FF90' 
+    activate Device
+    Device -->> DALI: 0xFF90
+    Device -->> USB: {00000020:10 FF90}
+    DALI -->> Device: 0xC4
+    Device -->> USB: {00000026:08 C4}
+    deactivate Device
 ```
