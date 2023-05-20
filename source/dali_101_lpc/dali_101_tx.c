@@ -6,8 +6,7 @@
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self-include for consistency
 
-#define MAX_DATA_LENGTH (32U)
-#define COUNT_ARRAY_SIZE (2U + MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
+#define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
 
 // see IEC 62386-101-2018 Table 16 - Transmitter bit timing
 static const struct _dali_timing {
@@ -93,7 +92,7 @@ static bool add_stop_condition(void)
 
 static bool calculate_counts(const struct dali_tx_frame frame)
 {
-    if (frame.length > MAX_DATA_LENGTH) {
+    if (frame.length > DALI_MAX_DATA_LENGTH) {
         generate_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
         return true;
     }
