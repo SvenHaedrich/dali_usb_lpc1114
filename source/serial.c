@@ -77,8 +77,7 @@ static void send_forward_frame(void)
     char twice_indicator;
     unsigned int length;
     unsigned long data;
-    const int n =
-        sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x%c%lx", (int*)&priority, &length, &twice_indicator, &data);
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x%c%lx", &priority, &length, &twice_indicator, &data);
     if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
         print_parameter_error();
         return;
@@ -108,35 +107,35 @@ static void send_repeated_command(void)
     unsigned int repeat;
     unsigned long data;
     const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %x %lx", &priority, &repeat, &length, &data);
-    if (n == 4) {
-        const struct dali_tx_frame frame = { .repeat = repeat, .priority = priority, .length = length, .data = data };
-        xQueueSendToBack(serial.queue_handle, &frame, 0);
-    } else {
+    if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
         print_parameter_error();
+        return;
     }
+    const struct dali_tx_frame frame = { .repeat = repeat, .priority = priority, .length = length, .data = data };
+    xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
 
 static void next_sequence(void)
 {
     unsigned long period_us;
     const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%lx", &period_us);
-    if (n == 1) {
-        dali_101_sequence_next(period_us);
-    } else {
+    if (n != 1) {
         print_parameter_error();
+        return;
     }
+    dali_101_sequence_next(period_us);
 }
 
 static void start_sequence(void)
 {
     unsigned long period_us;
     const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%lx", &period_us);
-    if (n == 1) {
-        dali_101_sequence_start();
-        dali_101_sequence_next(period_us);
-    } else {
+    if (n != 1) {
         print_parameter_error();
+        return;
     }
+    dali_101_sequence_start();
+    dali_101_sequence_next(period_us);
 }
 
 __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* dummy)

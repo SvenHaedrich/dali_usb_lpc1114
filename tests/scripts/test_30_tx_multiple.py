@@ -53,7 +53,7 @@ def test_settling_priority(dali_serial, cmd, settling, data):
     ],
 )
 def test_repeat(dali_serial, repeat, data):
-    cmd = f"R0 {repeat:x} 10 {data:x}\r"
+    cmd = f"R1 {repeat:x} 10 {data:x}\r"
     dali_serial.start_receive()
     dali_serial.port.write(cmd.encode("utf-8"))
     for j in range(repeat + 1):
