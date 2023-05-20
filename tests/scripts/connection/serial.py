@@ -20,7 +20,6 @@ class DaliSerial:
         self.transparent = transparent
         self.length = None
         self.data = None
-        self.last_transmit = None
         self.keep_running = False
 
     def parse(self, line):
@@ -29,10 +28,15 @@ class DaliSerial:
             end = line.find(ord("}"))
             payload = line[start:end]
             timestamp = int(payload[0:8], 16) / 1000.0
-            type_code = int(payload[8])
+            if payload[8] == ord(">"):
+                loopback = True
+            elif payload[8] == ord(":"):
+                loopback = False
+            else:
+                raise ValueError
             length = int(payload[9:11], 16)
             data = int(payload[12:20], 16)
-            return (timestamp, type_code, length, data)
+            return (timestamp, loopback, length, data)
         except ValueError:
             return None
 
@@ -66,13 +70,9 @@ class DaliSerial:
         if result is None:
             return DaliStatus(status=DaliStatus.GENERAL)
         self.timestamp = result[0]
-        if result[1] == ">":
-            loopback = True
-        else:
-            loopback = False
         self.length = result[2]
         self.data = result[3]
-        return DaliStatus(loopback, self.length, self.data)
+        return DaliStatus(result[1], self.length, self.data)
 
     def transmit(self, length=0, data=0, priority=1, send_twice=False, block=False):
         logger.debug("transmit")
@@ -80,7 +80,6 @@ class DaliSerial:
             self.port.write(f"T{priority} {length:X} {data:X}\r".encode("utf-8"))
         else:
             self.port.write(f"S{priority} {length:X} {data:X}\r".encode("utf-8"))
-        self.last_transmit = data
         if block:
             if not self.keep_running:
                 raise Exception("receive must be active for blocking call to transmit.")
