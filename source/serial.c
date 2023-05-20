@@ -64,14 +64,13 @@ static void buffer_reset(void)
 static void print_parameter_error(void)
 {
     const struct dali_rx_frame frame = {
-        .loopback = false,
         .timestamp = xTaskGetTickCount(),
         .status = DALI_ERROR_BAD_COMMAND,
     };
     serial_print_frame(frame);
 }
 
-static void send_forward_frame(void)
+static void query_command(void)
 {
     int priority;
     char twice_indicator;
@@ -82,9 +81,30 @@ static void send_forward_frame(void)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = {
-        .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0, .priority = priority, .length = length, .data = data
-    };
+    const struct dali_tx_frame frame = { .is_query = true,
+                                         .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
+                                         .priority = priority,
+                                         .length = length,
+                                         .data = data };
+    xQueueSendToBack(serial.queue_handle, &frame, 0);
+}
+
+static void send_forward_frame_command(void)
+{
+    int priority;
+    char twice_indicator;
+    unsigned int length;
+    unsigned long data;
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x%c%lx", &priority, &length, &twice_indicator, &data);
+    if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
+        print_parameter_error();
+        return;
+    }
+    const struct dali_tx_frame frame = { .is_query = false,
+                                         .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
+                                         .priority = priority,
+                                         .length = length,
+                                         .data = data };
     xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
 
@@ -144,14 +164,14 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
         uint32_t notifications;
         const BaseType_t result = xTaskNotifyWait(pdFALSE, ULONG_MAX, &notifications, portMAX_DELAY);
         if (result == pdPASS) {
-            board_flash_rx();
             switch (serial.rx_buffer[SERIAL_IDX_CMD]) {
             case SERIAL_CMD_QUERY:
-                // TODO: process command
+                board_flash_tx();
+                query_command();
                 break;
             case SERIAL_CMD_SEND:
                 board_flash_tx();
-                send_forward_frame();
+                send_forward_frame_command();
                 break;
             case SERIAL_CMD_BACKFRAME:
                 board_flash_tx();
