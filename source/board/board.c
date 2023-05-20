@@ -203,6 +203,10 @@ void TIMER32_1_IRQHandler(void)
         LPC_TMR32B1->IR = TMR32B0IR_MR1_INTERRUPT;
         dali_rx_irq_period_match_callback();
     }
+    if (LPC_TMR32B1->IR & TMR32B0IR_MR2_INTERRUPT) {
+        LPC_TMR32B1->IR = TMR32B0IR_MR2_INTERRUPT;
+        dali_rx_irq_query_match_callback();
+    }
     if (LPC_TMR32B1->IR & TMR32B0IR_CR0_INTERRUPT) {
         LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
         dali_rx_irq_capture_callback();
@@ -234,6 +238,11 @@ void board_dali_rx_set_period_match(uint32_t match_count)
     LPC_TMR32B1->MR1 = match_count;
 }
 
+void board_dali_rx_set_query_match(uint32_t match_count)
+{
+    LPC_TMR32B1->MR2 = match_count;
+}
+
 void board_dali_rx_stopbit_match_enable(bool enable)
 {
     if (enable) {
@@ -249,6 +258,15 @@ void board_dali_rx_period_match_enable(bool enable)
         LPC_TMR32B1->MCR |= (TMR32B0MCR_MR1I);
     } else {
         LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR1I);
+    }
+}
+
+void board_dali_rx_query_match_enable(bool enable)
+{
+    if (enable) {
+        LPC_TMR32B1->MCR |= (TMR32B0MCR_MR2I);
+    } else {
+        LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR2I);
     }
 }
 
