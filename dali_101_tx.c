@@ -10,8 +10,6 @@
 #define MAX_DATA_LENGTH (32U)
 #define COUNT_ARRAY_SIZE (2U + MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
 
-extern void rx_schedule_frame(void);
-
 // see IEC 62386-101-2018 Table 16 - Transmitter bit timing
 static const struct _dali_timing {
     uint32_t half_bit_us;
@@ -36,7 +34,8 @@ struct _tx {
     uint32_t min_settling_time;
 } tx;
 
-extern void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us);
+extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
+extern void rx_schedule_frame(void);
 
 void tx_reset(void)
 {
@@ -170,7 +169,6 @@ void dali_101_sequence_start(void)
 {
     tx_reset();
     tx.buffer_is_free = false;
-    //    tx.min_settling_time = dali_timing.settling_time_us[DALI_PRIORITY_1];
     tx.min_settling_time = 0;
     tx.repeat = 0;
 }
