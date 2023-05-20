@@ -17,13 +17,13 @@ class DaliStatus:
 
     def __init__(self, loopback=False, length=0, data=0, status=None):
         if status is None:
-            if loopback:
-                self.status = DaliStatus.LOOPBACK
-                self.message = "LOOPBACK FRAME"
-                return
             if length in range(0,0x21):
-                self.status = DaliStatus.FRAME
-                self.message = "NOMRAL FRAME"
+                if loopback:
+                    self.status = DaliStatus.LOOPBACK
+                    self.message = "LOOPBACK FRAME"
+                else:
+                    self.status = DaliStatus.FRAME
+                    self.message = "NOMRAL FRAME"
             elif length in range(0x81) or length == 0x92:
                 self.status = DaliStatus.OK
                 self.message = "OK"
