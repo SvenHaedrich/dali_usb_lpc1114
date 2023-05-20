@@ -208,7 +208,7 @@ static void finish_frame(void)
 
 void rx_schedule_frame(void)
 {
-    uint32_t min_settling_time = tx_get_settling_time();
+    const uint32_t min_settling_time = tx_get_settling_time();
     uint32_t min_start_count = min_settling_time + rx.last_edge_count;
     const uint32_t timer_now = board_dali_rx_get_count();
     if (timer_now > min_start_count) {
