@@ -79,15 +79,14 @@ static void send_forward_frame(void)
     unsigned long data;
     const int n =
         sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x%c%lx", (int*)&priority, &length, &twice_indicator, &data);
-    if (n == 4) {
-        const struct dali_tx_frame frame = { .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
-                                             .priority = priority,
-                                             .length = length,
-                                             .data = data };
-        xQueueSendToBack(serial.queue_handle, &frame, 0);
-    } else {
+    if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
         print_parameter_error();
+        return;
     }
+    const struct dali_tx_frame frame = {
+        .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0, .priority = priority, .length = length, .data = data
+    };
+    xQueueSendToBack(serial.queue_handle, &frame, 0);
 }
 
 static void send_backframe_command(void)
