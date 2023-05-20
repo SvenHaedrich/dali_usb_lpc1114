@@ -108,7 +108,7 @@ static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
     return true;
 }
 
-void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
+void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
         return;
@@ -119,8 +119,8 @@ void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
     if (rx.status == LOW) {
         rx.frame.timestamp = xTaskGetTickCount() - (rx_timing.min_failure_condition_us / 1000);
     }
-    rx.frame.is_status = true;
-    rx.frame.length = code;
+    rx.frame.status = code;
+    rx.frame.length = 0;
     rx.frame.data = (time_us & 0xffffff) << 8 | bit;
     xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     rx.status = ERROR_IN_FRAME;
@@ -232,6 +232,7 @@ static void process_capture_notification(void)
             set_new_status(START_BIT_START);
             rx.last_data_bit = true;
             rx.frame.timestamp = xTaskGetTickCount();
+            rx.frame.loopback = !dali_tx_is_idle();
         }
         break;
     case START_BIT_START:
@@ -252,7 +253,7 @@ static void process_capture_notification(void)
         break;
     case LOW:
         if (board_dali_rx_pin() == DALI_RX_IDLE) {
-            enum dali_error code = DALI_ERROR_RECEIVE_START_TIMING;
+            enum dali_status code = DALI_ERROR_RECEIVE_START_TIMING;
             if (rx.frame.length > 1) {
                 code = DALI_ERROR_RECEIVE_DATA_TIMING;
             }
@@ -365,9 +366,10 @@ static void dali_rx_init(void)
 
 void dali_101_request_status_frame(void)
 {
-    const struct dali_rx_frame status_frame = { .is_status = true,
+    const struct dali_rx_frame status_frame = { .loopback = false,
+                                                .status = (rx.status == IDLE) ? DALI_OK : DALI_SYSTEM_FAILURE,
                                                 .timestamp = xTaskGetTickCount(),
-                                                .length = (rx.status == IDLE) ? DALI_OK : DALI_SYSTEM_FAILURE,
+                                                .length = 0,
                                                 .data = 0 };
     xQueueSendToBack(rx.queue_handle, &status_frame, 0);
 }
