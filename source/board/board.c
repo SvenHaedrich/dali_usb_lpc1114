@@ -20,8 +20,8 @@
 #define DALI_TIMER_RATE_HZ (1000000U)
 
 static TimerHandle_t board_heartbeat_timer_id;
-static TimerHandle_t board_rx_timer_id;
-static TimerHandle_t board_tx_timer_id;
+static TimerHandle_t board_dali_timer_id;
+static TimerHandle_t board_serial_timer_id;
 
 static StaticTimer_t board_heartbeat_buffer;
 static StaticTimer_t board_rx_buffer;
@@ -104,33 +104,33 @@ static void board_setup_clocking(void)
 
 static void board_setup_pins(void)
 {
-    LPC_GPIO2->DIR |= (1U << 4U) | (1U << 5U) | (1U << 6U);
+    LPC_GPIO2->DIR |= (1U << LED_DALI_PIN) | (1U << LED_SERIAL_PIN) | (1U << LED_HEARTBEAT_PIN);
     LPC_GPIO0->DIR |= (1U << 1U);
 }
 
 void board_reset_led(enum board_led id)
 {
     if (id == LED_DALI) {
-        LPC_GPIO2->DATA &= ~(1U << 4U);
+        LPC_GPIO2->DATA &= ~(1U << LED_DALI_PIN);
     }
-    if (id == SERIAL_RX) {
-        LPC_GPIO2->DATA &= ~(1U << 5U);
+    if (id == LED_HEARTBEAT) {
+        LPC_GPIO2->DATA &= ~(1U << LED_HEARTBEAT_PIN);
     }
-    if (id == SERIAL_RX) {
-        LPC_GPIO2->DATA &= ~(1U << 6U);
+    if (id == LED_SERIAL) {
+        LPC_GPIO2->DATA &= ~(1U << LED_SERIAL_PIN);
     }
 }
 
 void board_set_led(enum board_led id)
 {
     if (id == LED_DALI) {
-        LPC_GPIO2->DATA |= (1U << 4U);
+        LPC_GPIO2->DATA |= (1U << LED_DALI_PIN);
     }
-    if (id == SERIAL_RX) {
-        LPC_GPIO2->DATA |= (1U << 5U);
+    if (id == LED_HEARTBEAT) {
+        LPC_GPIO2->DATA |= (1U << LED_HEARTBEAT_PIN);
     }
-    if (id == SERIAL_RX) {
-        LPC_GPIO2->DATA |= (1U << 6U);
+    if (id == LED_SERIAL) {
+        LPC_GPIO2->DATA |= (1U << LED_SERIAL_PIN);
     }
 }
 
@@ -298,54 +298,54 @@ static void board_heartbeat(__attribute__((unused)) TimerHandle_t dummy)
     counter++;
     if (board_dali_rx_pin() == DALI_RX_IDLE) {
         if (counter & 1) {
-            board_set_led(LED_DALI);
+            board_set_led(LED_HEARTBEAT);
         } else {
-            board_reset_led(LED_DALI);
+            board_reset_led(LED_HEARTBEAT);
         }
     } else {
         if (counter > SLOW_HEARTBEAT_COUNTER) {
-            board_set_led(LED_DALI);
+            board_set_led(LED_HEARTBEAT);
             counter = 0;
         } else
-            board_reset_led(LED_DALI);
+            board_reset_led(LED_HEARTBEAT);
     }
 }
 
-static void board_tx_timeout(__attribute__((unused)) TimerHandle_t dummy)
+static void board_serial_timeout(__attribute__((unused)) TimerHandle_t dummy)
 {
-    board_reset_led(SERIAL_TX);
+    board_reset_led(LED_SERIAL);
 }
 
-static void board_rx_timeout(__attribute__((unused)) TimerHandle_t dummy)
+static void board_dali_timeout(__attribute__((unused)) TimerHandle_t dummy)
 {
-    board_reset_led(SERIAL_RX);
+    board_reset_led(LED_DALI);
 }
 
 static void board_stop_all_timer(void)
 {
     xTimerStop(board_heartbeat_timer_id, 0x0);
-    xTimerStop(board_tx_timer_id, 0x0);
-    xTimerStop(board_rx_timer_id, 0x0);
+    xTimerStop(board_serial_timer_id, 0x0);
+    xTimerStop(board_dali_timer_id, 0x0);
 }
 
 void board_error(void)
 {
-    board_set_led(SERIAL_RX);
-    board_set_led(SERIAL_TX);
+    board_set_led(LED_DALI);
+    board_set_led(LED_SERIAL);
     board_set_led(LED_DALI);
     board_stop_all_timer();
 }
 
-void board_flash_rx(void)
+void board_flash_dali(void)
 {
-    board_set_led(SERIAL_RX);
-    xTimerStart(board_rx_timer_id, 0x0);
+    board_set_led(LED_DALI);
+    xTimerStart(board_dali_timer_id, 0x0);
 }
 
-void board_flash_tx(void)
+void board_flash_serial(void)
 {
-    board_set_led(SERIAL_TX);
-    xTimerStart(board_tx_timer_id, 0x0);
+    board_set_led(LED_SERIAL);
+    xTimerStart(board_serial_timer_id, 0x0);
 }
 
 static void board_setup_IRQs(void)
@@ -361,15 +361,15 @@ void board_init(void)
 {
     board_heartbeat_timer_id =
         xTimerCreateStatic("heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer);
-    board_rx_timer_id =
-        xTimerCreateStatic("rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_rx_timeout, &board_rx_buffer);
-    board_tx_timer_id =
-        xTimerCreateStatic("tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_tx_timeout, &board_tx_buffer);
+    board_dali_timer_id =
+        xTimerCreateStatic("rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_dali_timeout, &board_rx_buffer);
+    board_serial_timer_id =
+        xTimerCreateStatic("tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_serial_timeout, &board_tx_buffer);
     xTimerStart(board_heartbeat_timer_id, 0x0);
     board_setup_pins();
     board_reset_led(LED_DALI);
-    board_reset_led(SERIAL_RX);
-    board_reset_led(SERIAL_TX);
+    board_reset_led(LED_DALI);
+    board_reset_led(LED_SERIAL);
     board_setup_IRQs();
 }
 

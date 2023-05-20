@@ -1,9 +1,8 @@
 #pragma once
 
-#define LED_SERIAL_RX GPIO_PIN_2
-#define LED_SERIAL_TX GPIO_PIN_1
-#define LED_DALI_STATE GPIO_PIN_0
-#define LED_GPIO_PORT GPIOA
+#define LED_DALI_PIN 5
+#define LED_SERIAL_PIN 6
+#define LED_HEARTBEAT_PIN 4
 
 #define DALI_TX_Pin GPIO_PIN_8
 #define DALI_TX_GPIO_Port GPIOA
@@ -25,12 +24,12 @@
 #define BOARD_AHB_CLOCK (48000000U)
 #define BOARD_UART_CLOCK (12000000U)
 
-enum board_led { LED_DALI, SERIAL_RX, SERIAL_TX };
+enum board_led { LED_HEARTBEAT, LED_DALI, LED_SERIAL };
 
 void board_init(void);
 void board_set_led(enum board_led id);
 void board_reset_led(enum board_led id);
-void board_flash_rx(void);
-void board_flash_tx(void);
+void board_flash_dali(void);
+void board_flash_serial(void);
 void board_error(void);
 bool core_isr_active(void);

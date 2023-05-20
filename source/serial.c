@@ -166,39 +166,39 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
         if (result == pdPASS) {
             switch (serial.rx_buffer[SERIAL_IDX_CMD]) {
             case SERIAL_CMD_QUERY:
-                board_flash_tx();
+                board_flash_serial();
                 query_command();
                 break;
             case SERIAL_CMD_SEND:
-                board_flash_tx();
+                board_flash_serial();
                 send_forward_frame_command();
                 break;
             case SERIAL_CMD_BACKFRAME:
-                board_flash_tx();
+                board_flash_serial();
                 send_backframe_command();
                 break;
             case SERIAL_CMD_REPEAT:
-                board_flash_tx();
+                board_flash_serial();
                 send_repeated_command();
                 break;
             case SERIAL_CMD_STATUS:
-                board_flash_tx();
+                board_flash_serial();
                 dali_101_request_status_frame();
                 break;
             case SERIAL_CMD_HELP:
-                board_flash_tx();
+                board_flash_serial();
                 serial_print_head();
                 break;
             case SERIAL_CMD_START_SEQ:
-                board_flash_tx();
+                board_flash_serial();
                 start_sequence();
                 break;
             case SERIAL_CMD_NEXT_SEQ:
-                board_flash_tx();
+                board_flash_serial();
                 next_sequence();
                 break;
             case SERIAL_CMD_EXECUTE_SEQ:
-                board_flash_tx();
+                board_flash_serial();
                 dali_101_sequence_execute();
                 break;
             }
