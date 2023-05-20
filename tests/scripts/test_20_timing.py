@@ -106,7 +106,6 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
         time_us = dali_serial.data >> 8
         assert abs(time_us - length_us) < 10.0
 
-
 @pytest.mark.parametrize("length_us", [600000, 800000, 1000000])
 def test_system_failures(dali_serial, length_us):
     short_time = 0.05

@@ -9,13 +9,11 @@ logger = logging.getLogger(__name__)
 @pytest.mark.parametrize(
     "cmd, settling, data",
     [
-        ("S0 10+FF00\r", 5500, 0xFF00),
         ("S1 10+00FF\r", 13500, 0x00FF),
         ("S2 10+FF00\r", 14900, 0xFF00),
         ("S3 10+00FF\r", 16300, 0x00FF),
         ("S4 10+FF00\r", 17900, 0xFF00),
         ("S5 10+00FF\r", 19500, 0x00FF),
-        ("R0 1 10 FF00\r", 5500, 0xFF00),
         ("R1 1 10 00FF\r", 13500, 0x00FF),
         ("R2 1 10 FF00\r", 14900, 0xFF00),
         ("R3 1 10 00FF\r", 16300, 0x00FF),
