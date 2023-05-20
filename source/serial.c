@@ -90,6 +90,18 @@ static void send_forward_frame(void)
     }
 }
 
+static void send_backframe_command(void)
+{
+    uint32_t data;
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%lx", &data);
+    if (n != 1 || data > 0xFF) {
+        print_parameter_error();
+        return;
+    }
+    const struct dali_tx_frame frame = { .repeat = 0, .priority = DALI_BACKWARD_FRAME, .length = 8, .data = data };
+    xQueueSendToBack(serial.queue_handle, &frame, 0);
+}
+
 static void send_repeated_command(void)
 {
     int priority;
@@ -144,7 +156,8 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
                 send_forward_frame();
                 break;
             case SERIAL_CMD_BACKFRAME:
-                // TODO: process command
+                board_flash_tx();
+                send_backframe_command();
                 break;
             case SERIAL_CMD_REPEAT:
                 board_flash_tx();
