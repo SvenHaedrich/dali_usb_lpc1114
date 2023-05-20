@@ -7,8 +7,8 @@ This version is for NXP LPC1114  microcontroller.
 
 This implementation is based on IEC 62386-101:2022.
 
-[Hardware](docs/hardware.md) \
-[Commands](docs/commands.md) \
-[Messages and Command Usage](docs/messages.md) \
-[Installation and Building](docs/install_build.md) \
-[Tests](docs/tests.md) 
+[Hardware](doc/hardware.md) \
+[Commands](doc/commands.md) \
+[Messages and Command Usage](doc/messages.md) \
+[Installation and Building](doc/install_build.md) \
+[Tests](doc/tests.md) 
