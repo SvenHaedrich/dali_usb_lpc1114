@@ -41,6 +41,7 @@ struct dali_rx_frame {
 };
 
 struct dali_tx_frame {
+    bool is_query;
     uint8_t length;
     uint32_t data;
     uint8_t repeat;
@@ -59,3 +60,4 @@ void dali_tx_irq_callback(void);
 void dali_rx_irq_capture_callback(void);
 void dali_rx_irq_stopbit_match_callback(void);
 void dali_rx_irq_period_match_callback(void);
+void dali_rx_irq_query_match_callback(void);

@@ -27,13 +27,14 @@ struct _tx {
     uint_fast8_t index_next;
     uint_fast8_t index_max;
     bool state_now;
-    bool buffer_is_free;
     uint8_t repeat;
     uint32_t min_settling_time;
+    bool is_query;
 } tx;
 
 extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
 extern void rx_schedule_frame(void);
+extern void rx_schedule_query(void);
 
 void tx_reset(void)
 {
@@ -41,7 +42,6 @@ void tx_reset(void)
     tx.index_next = 0;
     tx.index_max = 0;
     tx.state_now = true;
-    tx.buffer_is_free = true;
 }
 
 static bool add_bit(bool value)
@@ -120,6 +120,10 @@ void dali_tx_irq_callback(void)
     }
     board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
+    if (tx.is_query) {
+        rx_schedule_query();
+        tx.is_query = false;
+    }
 }
 
 void dali_tx_start_send(void)
@@ -152,9 +156,9 @@ uint32_t tx_get_settling_time(void)
 void dali_101_send(const struct dali_tx_frame frame)
 {
     tx_reset();
-    tx.buffer_is_free = false;
     tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
     tx.repeat = frame.repeat;
+    tx.is_query = frame.is_query;
     if (calculate_counts(frame)) {
         return;
     }
@@ -165,7 +169,6 @@ void dali_101_send(const struct dali_tx_frame frame)
 void dali_101_sequence_start(void)
 {
     tx_reset();
-    tx.buffer_is_free = false;
     tx.min_settling_time = 0;
     tx.repeat = 0;
 }
