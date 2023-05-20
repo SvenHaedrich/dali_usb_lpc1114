@@ -17,6 +17,7 @@
 #define NOTIFY_CAPTURE (0x01)
 #define NOTIFY_MATCH (0x02)
 #define NOTIFY_PRIORITY (0x04)
+#define NOTIFY_QUERY (0x08)
 
 #define QUEUE_SIZE (5U)
 
@@ -33,6 +34,7 @@ enum rx_status {
 
 // see IEC 62386-101-2018 Table 18, Table 19 - Transmitter bit timing
 // see IEC 62386-101-2018 Table 4 - Power interruption of bus power
+// see IEC 62386-101-2022 Table 20 - Receiver settling time values
 static const struct _rx_timing {
     uint32_t min_half_bit_begin_us;
     uint32_t max_half_bit_begin_us;
@@ -42,6 +44,7 @@ static const struct _rx_timing {
     uint32_t max_full_bit_inside_us;
     uint32_t min_stop_condition_us;
     uint32_t min_failure_condition_us;
+    uint32_t max_backward_settling_us;
 } rx_timing = {
     .min_half_bit_begin_us = 333, // Table 18
     .max_half_bit_begin_us = (500 + 10),
@@ -51,6 +54,7 @@ static const struct _rx_timing {
     .max_full_bit_inside_us = 1000,
     .min_stop_condition_us = 2400,
     .min_failure_condition_us = 500000, // Table 4
+    .max_backward_settling_us = 13400,  // Table 20
 };
 
 // module variables
@@ -99,6 +103,14 @@ void dali_rx_irq_period_match_callback(void)
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
+void dali_rx_irq_query_match_callback(void)
+{
+    BaseType_t higher_priority_woken = pdFALSE;
+    xTaskNotifyFromISR(rx.task_handle, NOTIFY_QUERY, eSetBits, &higher_priority_woken);
+    board_dali_rx_query_match_enable(false);
+    portYIELD_FROM_ISR(higher_priority_woken);
+}
+
 static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
 {
     if ((time_difference_us > rx_timing.max_half_bit_begin_us) ||
@@ -123,6 +135,17 @@ void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
     rx.frame.data = (time_us & 0xffffff) << 8 | bit;
     xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     rx.status = ERROR_IN_FRAME;
+}
+
+static void generate_timeout_frame(void)
+{
+    if (rx.status == IDLE) {
+        rx.frame.status = DALI_TIMEOUT;
+        rx.frame.length = 0;
+        rx.frame.loopback = false;
+        rx.frame.data = 0;
+        xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+    }
 }
 
 static bool is_valid_halfbit_inside_timing(const uint32_t time_difference_us)
@@ -197,6 +220,14 @@ void rx_schedule_frame(void)
     board_dali_rx_period_match_enable(true);
 }
 
+void rx_schedule_query(void)
+{
+    const uint32_t timer_now = board_dali_rx_get_count();
+    const uint32_t query_count = timer_now + rx_timing.max_backward_settling_us;
+    board_dali_rx_set_query_match(query_count);
+    board_dali_rx_query_match_enable(true);
+}
+
 static void manage_tx(void)
 {
     if (dali_tx_is_idle()) {
@@ -231,6 +262,7 @@ static void process_capture_notification(void)
             rx.last_data_bit = true;
             rx.frame.timestamp = xTaskGetTickCount();
             rx.frame.loopback = !dali_tx_is_idle();
+            board_dali_rx_query_match_enable(false);
         }
         break;
     case START_BIT_START:
@@ -330,6 +362,9 @@ __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dumm
             }
             if (notifications & NOTIFY_PRIORITY) {
                 dali_tx_start_send();
+            }
+            if (notifications & NOTIFY_QUERY) {
+                generate_timeout_frame();
             }
         }
     }
