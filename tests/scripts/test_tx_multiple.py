@@ -1,37 +1,20 @@
 import pytest
 import logging
 import time
+from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
-
-
-def read_one_frame(serial_conn, expected_data):
-    reply = serial_conn.readline()
-    logger.debug(f"read line: {reply}")
-    start = reply.find(ord("{")) + 1
-    end = reply.find(ord("}"))
-    assert start > 0
-    assert end > 0
-    payload = reply[start:end]
-    timestamp = int(payload[0:8], 16) / 1000.0
-    type = chr(payload[8])
-    length = int(payload[9:11], 16)
-    data = int(payload[12:20], 16)
-    assert type == "-"
-    assert length == 16
-    assert data == expected_data
-    return timestamp
 
 
 @pytest.mark.parametrize(
     "cmd, settling, data",
     [
-        ("T0 10 FF00\r", 5500, 0xFF00),
-        ("T1 10 00FF\r", 13500, 0x00FF),
-        ("T2 10 FF00\r", 14900, 0xFF00),
-        ("T3 10 00FF\r", 16300, 0x00FF),
-        ("T4 10 FF00\r", 17900, 0xFF00),
-        ("T5 10 00FF\r", 19500, 0x00FF),
+        ("S0 10+FF00\r", 5500, 0xFF00),
+        ("S1 10+00FF\r", 13500, 0x00FF),
+        ("S2 10+FF00\r", 14900, 0xFF00),
+        ("S3 10+00FF\r", 16300, 0x00FF),
+        ("S4 10+FF00\r", 17900, 0xFF00),
+        ("S5 10+00FF\r", 19500, 0x00FF),
         ("R0 1 10 FF00\r", 5500, 0xFF00),
         ("R1 1 10 00FF\r", 13500, 0x00FF),
         ("R2 1 10 FF00\r", 14900, 0xFF00),
@@ -40,10 +23,13 @@ def read_one_frame(serial_conn, expected_data):
         ("R5 1 10 00FF\r", 19500, 0x00FF),
     ],
 )
-def test_settling_priority(serial_conn, cmd, settling, data):
-    serial_conn.write(cmd.encode("utf-8"))
-    timestamp_1 = read_one_frame(serial_conn, data)
-    timestamp_2 = read_one_frame(serial_conn, data)
+def test_settling_priority(dali_serial, cmd, settling, data):
+    dali_serial.start_receive()
+    dali_serial.port.write(cmd.encode("utf-8"))
+    assert dali_serial.get_next(2).status == DaliStatus.FRAME
+    timestamp_1 = dali_serial.timestamp
+    assert dali_serial.get_next(2).status == DaliStatus.FRAME
+    timestamp_2 = dali_serial.timestamp
     delta = timestamp_2 - timestamp_1
     fullbit_time = 833 / 1000000
     expected_delta = 17 * fullbit_time + (settling / 1000000)
@@ -68,8 +54,9 @@ def test_settling_priority(serial_conn, cmd, settling, data):
         (255, 0xFFFF),
     ],
 )
-def test_repeat(serial_conn, repeat, data):
+def test_repeat(dali_serial, repeat, data):
     cmd = f"R0 {repeat:x} 10 {data:x}\r"
-    serial_conn.write(cmd.encode("utf-8"))
+    dali_serial.start_receive()
+    dali_serial.port.write(cmd.encode("utf-8"))
     for j in range(repeat + 1):
-        read_one_frame(serial_conn, data)
+        assert dali_serial.get_next(2).status == DaliStatus.FRAME

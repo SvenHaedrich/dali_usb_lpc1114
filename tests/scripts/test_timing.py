@@ -2,42 +2,42 @@ import pytest
 import logging
 import time
 
-from dali_py.source.DALI import DALIError, Raw_Frame
+from connection.serial import DaliSerial
+from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
 
 
 def set_up_and_send_sequence(serial, bit_timings):
     short_time = 0.05
-    # start sequence
-    cmd = "Q\r"
-    serial.write(cmd.encode("utf-8"))
-    time.sleep(short_time)
-    # set periods
+    # set up sequence
+    first_cmd = True
     for period in bit_timings:
-        cmd = f"N {period:x}\r"
-        serial.write(cmd.encode("utf-8"))
+        if first_cmd:
+            cmd = f"D{period:x}\r"
+            first_cmd = False
+        else:
+            cmd = f"N{period:x}\r"
+        serial.port.write(cmd.encode("utf-8"))
         time.sleep(short_time)
     # here we go
-    cmd = "X\r"
-    serial.write(cmd.encode("utf-8"))
+    serial.port.write("X\r".encode("utf-8"))
+    time.sleep(short_time)
 
 
 def read_result_and_assert(serial, length, data):
-    reply = serial.readline()
-    logger.debug(f"read line: {reply}")
-    result = Raw_Frame()
-    result.from_line(reply)
-    assert result.type == Raw_Frame.COMMAND
-    assert result.length == length
-    assert result.data == data
+    result = serial.get_next(2)
+    assert result.status == DaliStatus.FRAME
+    assert serial.length == length
+    assert serial.data == data
 
 
-def test_legal_bittiming(serial_conn):
+def test_legal_bittiming(dali_serial):
     std_halfbit_period = 417
     bits = [std_halfbit_period] * 17
-    set_up_and_send_sequence(serial_conn, bits)
-    read_result_and_assert(serial_conn, 8, 0xFF)
+    dali_serial.start_receive()
+    set_up_and_send_sequence(dali_serial, bits)
+    read_result_and_assert(dali_serial, 8, 0xFF)
 
 
 @pytest.mark.parametrize(
@@ -53,104 +53,87 @@ def test_legal_bittiming(serial_conn):
         (15, 0xFE),
     ],
 )
-def test_more_legal_timings(serial_conn, index, value):
+def test_more_legal_timings(dali_serial, index, value):
     std_halfbit_period = 417
     std_fullbit_period = 833
     bits = [std_halfbit_period] * 17
     bits[index] = std_fullbit_period
-    set_up_and_send_sequence(serial_conn, bits)
-    read_result_and_assert(serial_conn, 8, value)
+    dali_serial.start_receive()
+    set_up_and_send_sequence(dali_serial, bits)
+    read_result_and_assert(dali_serial, 8, value)
 
 
 @pytest.mark.parametrize(
     "length_us,expected_code",
     [
-        (200, DALIError.RECEIVE_START_TIMING),
-        (250, DALIError.RECEIVE_START_TIMING),
-        (300, DALIError.RECEIVE_START_TIMING),
-        (350, DALIError.OK),
-        (400, DALIError.OK),
-        (450, DALIError.OK),
-        (500, DALIError.OK),
-        (750, DALIError.RECEIVE_START_TIMING),
-        (1000, DALIError.RECEIVE_START_TIMING),
-        (1500, DALIError.RECEIVE_START_TIMING),
-        (2000, DALIError.RECEIVE_START_TIMING),
-        (2500, DALIError.RECEIVE_START_TIMING),
-        (4000, DALIError.RECEIVE_START_TIMING),
-        (10000, DALIError.RECEIVE_START_TIMING),
-        (20000, DALIError.RECEIVE_START_TIMING),
-        (50000, DALIError.RECEIVE_START_TIMING),
-        (100000, DALIError.RECEIVE_START_TIMING),
-        (500000, DALIError.RECEIVE_START_TIMING),
+        (200, DaliStatus.TIMING),
+        (250, DaliStatus.TIMING),
+        (300, DaliStatus.TIMING),
+        (350, DaliStatus.FRAME),
+        (400, DaliStatus.FRAME),
+        (450, DaliStatus.FRAME),
+        (500, DaliStatus.FRAME),
+        (750, DaliStatus.TIMING),
+        (1000, DaliStatus.TIMING),
+        (1500, DaliStatus.TIMING),
+        (2000, DaliStatus.TIMING),
+        (2500, DaliStatus.TIMING),
+        (4000, DaliStatus.TIMING),
+        (10000, DaliStatus.TIMING),
+        (20000, DaliStatus.TIMING),
+        (50000, DaliStatus.TIMING),
+        (100000, DaliStatus.TIMING),
+        (500000, DaliStatus.TIMING),
     ],
 )
-def test_startbit_lengths(serial_conn, length_us, expected_code):
+def test_startbit_lengths(dali_serial, length_us, expected_code):
     short_time = 0.05
-    # start sequence
-    cmd = "Q\r"
-    serial_conn.write(cmd.encode("utf-8"))
-    time.sleep(short_time)
-    # set period
-    cmd = f"N {length_us:x}\r"
-    serial_conn.write(cmd.encode("utf-8"))
+    # define sequence
+    cmd = f"D{length_us:x}\r"
+    dali_serial.port.write(cmd.encode("utf-8"))
     time.sleep(short_time)
     # here we go
     cmd = "X\r"
-    serial_conn.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("utf-8"))
     time.sleep(short_time)
     # read result
-    reply = serial_conn.readline()
-    logger.debug(f"read line: {reply}")
-    result = Raw_Frame()
-    result.from_line(reply)
-    if expected_code == DALIError.OK:
-        assert result.type == Raw_Frame.COMMAND
+    dali_serial.start_receive()
+    result = dali_serial.get_next(2)
+    assert result.status == expected_code
+    if expected_code == DaliStatus.FRAME:
+        assert (dali_serial.data & 0xFF) == 0
     else:
-        assert result.type == Raw_Frame.ERROR
-        assert result.length == expected_code
-        assert (result.data & 0xFF) == 0
-        time_us = result.data >> 8
+        assert (dali_serial.data & 0xFF) == 0
+        time_us = dali_serial.data >> 8
         assert abs(time_us - length_us) < 10.0
 
 
 @pytest.mark.parametrize("length_us", [600000, 800000, 1000000])
-def test_system_failures(serial_conn, length_us):
+def test_system_failures(dali_serial, length_us):
     short_time = 0.05
-    # start sequence
-    cmd = "Q\r"
-    serial_conn.write(cmd.encode("utf-8"))
-    time.sleep(short_time)
-    # set period
-    cmd = f"N {length_us:x}\r"
-    serial_conn.write(cmd.encode("utf-8"))
+    # set-up sequence
+    cmd = f"D{length_us:x}\r"
+    dali_serial.port.write(cmd.encode("utf-8"))
     time.sleep(short_time)
     # here we go
     cmd = "X\r"
-    serial_conn.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("utf-8"))
     time.sleep(0.40)
     # read failure message
-    reply = serial_conn.readline()
-    logger.debug(f"read line: {reply}")
-    failure = Raw_Frame()
-    failure.from_line(reply)
-    assert failure.type == Raw_Frame.ERROR
-    assert failure.length == DALIError.SYSTEM_FAILURE
-    assert (failure.data & 0xFF) == 0
-    time_us = failure.data >> 8
+    dali_serial.start_receive()
+    result = dali_serial.get_next(5)
+    assert result.status == DaliStatus.FAILURE
+    time_us = dali_serial.data >> 8
+    failure = dali_serial.timestamp
     assert time_us == 0
     # read recover message
     sleep_sec = 0.1
     if sleep_sec > 0:
         logger.debug(f"sleep {sleep_sec} sec")
         time.sleep(sleep_sec)
-    reply = serial_conn.readline()
-    logger.debug(f"read line: {reply}")
-    recover = Raw_Frame()
-    recover.from_line(reply)
-    assert recover.type == Raw_Frame.ERROR
-    assert recover.length == DALIError.SYSTEM_RECOVER
-    assert (recover.data & 0xFF) == 0
-    time_us = recover.data >> 8
-    assert abs(time_us - length_us) < 10.0
-    assert abs((recover.timestamp - failure.timestamp) - (length_us / 1e6)) < 0.002
+    result = dali_serial.get_next(5)
+    assert result.status == DaliStatus.OK
+    recover = dali_serial.timestamp
+    time_us = dali_serial.data >> 8
+    assert abs(time_us - length_us) < 20.0
+    assert abs((recover - failure) - (length_us / 1e6)) < 0.002

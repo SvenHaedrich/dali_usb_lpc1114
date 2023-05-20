@@ -19,11 +19,11 @@
 #include "dali_101_lpc/dali_101.h"
 #include "serial.h"
 
-#if !(DALI_101_MAJOR_VERSION == 2U)
-#error "expected DALI 101 major version 2."
+#if !(DALI_101_MAJOR_VERSION == 3U)
+#error "expected DALI 101 major version 3."
 #endif
-#if !(DALI_101_MINOR_VERSION == 1U)
-#error "expected DALI 101 minor version 1."
+#if !(DALI_101_MINOR_VERSION == 0U)
+#error "expected DALI 101 minor version 0."
 #endif
 
 #define MAIN_TASK_STACKSIZE (2 * configMINIMAL_STACK_SIZE)
