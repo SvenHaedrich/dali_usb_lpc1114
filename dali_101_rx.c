@@ -6,7 +6,6 @@
 #include "task.h"
 #include "queue.h"
 
-#include "log/log.h"    // logging
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self include for consistency
 
@@ -177,7 +176,6 @@ static enum rx_status check_inside_timing(void)
 
 static void finish_frame(void)
 {
-    log_debug("{%08x-%02x %08x}", rx.frame.timestamp, rx.frame.length, rx.frame.data);
     const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     if (result == errQUEUE_FULL) {
         configASSERT(false);
