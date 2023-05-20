@@ -17,14 +17,16 @@
 #define SERIAL_BUFFER_SIZE 20
 #define SERIAL_IDX_CMD 0
 #define SERIAL_IDX_ARG 1
-#define SERIAL_CMD_SINGLE 'S'
-#define SERIAL_CMD_TWICE 'T'
+#define SERIAL_CMD_QUERY 'Q'
+#define SERIAL_CMD_SEND 'S'
 #define SERIAL_CMD_REPEAT 'R'
+#define SERIAL_CMD_BACKFRAME 'B'
 #define SERIAL_CMD_STATUS '!'
 #define SERIAL_CMD_HELP '?'
-#define SERIAL_CMD_START_SEQ 'Q'
+#define SERIAL_CMD_START_SEQ 'D'
 #define SERIAL_CMD_NEXT_SEQ 'N'
 #define SERIAL_CMD_EXECUTE_SEQ 'X'
+#define SERIAL_CHAR_TWICE '+'
 #define SERIAL_CHAR_EOL 0x0d
 
 #define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
@@ -48,8 +50,9 @@ void serial_print_head(void)
 
 void serial_print_frame(const struct dali_rx_frame frame)
 {
-    const char c = frame.is_status ? '*' : '-';
-    printf("{%08lx%c%02x %08lx}\r\n", frame.timestamp, c, frame.length, frame.data);
+    const char c = frame.loopback ? '>' : ':';
+    const uint8_t length = (frame.status > DALI_OK) ? frame.status : frame.length;
+    printf("{%08lx%c%02x %08lx}\r\n", frame.timestamp, c, length, frame.data);
 }
 
 static void buffer_reset(void)
@@ -61,21 +64,26 @@ static void buffer_reset(void)
 static void print_parameter_error(void)
 {
     const struct dali_rx_frame frame = {
-        .is_status = true, .timestamp = xTaskGetTickCount(), .length = DALI_ERROR_BAD_COMMAND, .data = 0
+        .loopback = false,
+        .timestamp = xTaskGetTickCount(),
+        .status = DALI_ERROR_BAD_COMMAND,
     };
     serial_print_frame(frame);
 }
 
-static void send_command(bool send_twice)
+static void send_forward_frame(void)
 {
     int priority;
+    char twice_indicator;
     unsigned int length;
     unsigned long data;
-    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x %lx", (int*)&priority, &length, &data);
-    if (n == 3) {
-        const struct dali_tx_frame frame = {
-            .repeat = send_twice ? 1 : 0, .priority = priority, .length = length, .data = data
-        };
+    const int n =
+        sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%d %x%c%lx", (int*)&priority, &length, &twice_indicator, &data);
+    if (n == 4) {
+        const struct dali_tx_frame frame = { .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
+                                             .priority = priority,
+                                             .length = length,
+                                             .data = data };
         xQueueSendToBack(serial.queue_handle, &frame, 0);
     } else {
         print_parameter_error();
@@ -108,6 +116,18 @@ static void next_sequence(void)
     }
 }
 
+static void start_sequence(void)
+{
+    unsigned long period_us;
+    const int n = sscanf(&serial.rx_buffer[SERIAL_IDX_ARG], "%lx", &period_us);
+    if (n == 1) {
+        dali_101_sequence_start();
+        dali_101_sequence_next(period_us);
+    } else {
+        print_parameter_error();
+    }
+}
+
 __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* dummy)
 {
     while (true) {
@@ -116,13 +136,18 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
         if (result == pdPASS) {
             board_flash_rx();
             switch (serial.rx_buffer[SERIAL_IDX_CMD]) {
-            case SERIAL_CMD_SINGLE:
-                send_command(false);
+            case SERIAL_CMD_QUERY:
+                // TODO: process command
                 break;
-            case SERIAL_CMD_TWICE:
-                send_command(true);
+            case SERIAL_CMD_SEND:
+                board_flash_tx();
+                send_forward_frame();
+                break;
+            case SERIAL_CMD_BACKFRAME:
+                // TODO: process command
                 break;
             case SERIAL_CMD_REPEAT:
+                board_flash_tx();
                 send_repeated_command();
                 break;
             case SERIAL_CMD_STATUS:
@@ -135,7 +160,7 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
                 break;
             case SERIAL_CMD_START_SEQ:
                 board_flash_tx();
-                dali_101_sequence_start();
+                start_sequence();
                 break;
             case SERIAL_CMD_NEXT_SEQ:
                 board_flash_tx();
@@ -160,14 +185,15 @@ void UART_IRQHandler(void)
         BaseType_t higher_priority_woken = pdFALSE;
         const char c = LPC_UART->RBR;
         switch (c) {
-        case SERIAL_CMD_SINGLE:
-        case SERIAL_CMD_TWICE:
+        case SERIAL_CMD_SEND:
+        case SERIAL_CMD_QUERY:
         case SERIAL_CMD_REPEAT:
         case SERIAL_CMD_NEXT_SEQ:
+        case SERIAL_CMD_START_SEQ:
+        case SERIAL_CMD_BACKFRAME:
             serial.buffer_index = 0;
             serial.rx_buffer[serial.buffer_index] = c;
             break;
-        case SERIAL_CMD_START_SEQ:
         case SERIAL_CMD_EXECUTE_SEQ:
         case SERIAL_CMD_STATUS:
         case SERIAL_CMD_HELP:
