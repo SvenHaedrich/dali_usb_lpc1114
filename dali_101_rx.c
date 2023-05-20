@@ -140,6 +140,7 @@ void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 static void generate_timeout_frame(void)
 {
     if (rx.status == IDLE) {
+        rx.frame.timestamp = xTaskGetTickCount();
         rx.frame.status = DALI_TIMEOUT;
         rx.frame.length = 0;
         rx.frame.loopback = false;
