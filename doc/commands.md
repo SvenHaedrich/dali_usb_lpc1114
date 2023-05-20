@@ -51,11 +51,11 @@ Send a backframe. The command syntax is
 
 ## Request Status `!`
 
-Request a status frame.
+Request a status frame. No end of line character required.
 - - - 
 ## Request Information `?`
 
-Print information about the firmware.
+Print information about the firmware. No end of line character required.
 - - -
 ## Start Sequence `D`
 
@@ -80,7 +80,7 @@ Continue to define the timing for a sequence.
 - - -
 ## Exexute Sequence `X`
 
-Execute a defined sequence.
+Execute a defined sequence. No end of line character required.
 - - -
 
 ## Priorities
