@@ -15,6 +15,7 @@
 #include "task.h"
 
 #include "board/board.h"
+#include "board/led.h"
 #include "version.h"
 #include "dali_101_lpc/dali_101.h"
 #include "serial.h"
@@ -35,7 +36,7 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
     struct dali_tx_frame tx_frame;
     while (true) {
         if (dali_101_get(&rx_frame, 0)) {
-            board_flash_dali();
+            board_flash(LED_DALI);
             serial_print_frame(rx_frame);
         }
         if (serial_get(&tx_frame, 0)) {

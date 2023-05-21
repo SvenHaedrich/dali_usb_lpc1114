@@ -7,7 +7,7 @@
 
 enum board_toggle { NOTHING, DISABLE_TOGGLE };
 
-void board_dali_init(void);
+void board_setup_dali_clock(void);
 
 void board_dali_tx_set(bool state);
 void board_dali_tx_timer_stop(void);

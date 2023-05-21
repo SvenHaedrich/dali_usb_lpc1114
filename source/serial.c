@@ -10,7 +10,8 @@
 #include "bitfields.h"
 
 #include "dali_101_lpc/dali_101.h"
-#include "board/board.h"
+#include "board/led.h"
+#include "board/board.h" // irq priorities
 #include "version.h"
 #include "serial.h"
 
@@ -166,39 +167,39 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
         if (result == pdPASS) {
             switch (serial.rx_buffer[SERIAL_IDX_CMD]) {
             case SERIAL_CMD_QUERY:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 query_command();
                 break;
             case SERIAL_CMD_SEND:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 send_forward_frame_command();
                 break;
             case SERIAL_CMD_BACKFRAME:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 send_backframe_command();
                 break;
             case SERIAL_CMD_REPEAT:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 send_repeated_command();
                 break;
             case SERIAL_CMD_STATUS:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 dali_101_request_status_frame();
                 break;
             case SERIAL_CMD_HELP:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 serial_print_head();
                 break;
             case SERIAL_CMD_START_SEQ:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 start_sequence();
                 break;
             case SERIAL_CMD_NEXT_SEQ:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 next_sequence();
                 break;
             case SERIAL_CMD_EXECUTE_SEQ:
-                board_flash_serial();
+                board_flash(LED_SERIAL);
                 dali_101_sequence_execute();
                 break;
             }

@@ -1,6 +1,3 @@
-// TODO split up the board file into led and dali
-// TODO make board a library for cmake
-
 #include <stdbool.h>
 #include <string.h>
 
@@ -11,21 +8,10 @@
 #include "bitfields.h"
 #include "dali_101_lpc/dali_101.h" // irq callbacks
 #include "dali.h"
+#include "led.h"
 #include "board.h"
 
-#define HEARTBEAT_PERIOD_MS (100U)
-#define SLOW_HEARTBEAT_COUNTER (10U)
-#define FLASH_PERIOD_MS (200U)
-
 #define DALI_TIMER_RATE_HZ (1000000U)
-
-static TimerHandle_t board_heartbeat_timer_id;
-static TimerHandle_t board_dali_timer_id;
-static TimerHandle_t board_serial_timer_id;
-
-static StaticTimer_t board_heartbeat_buffer;
-static StaticTimer_t board_rx_buffer;
-static StaticTimer_t board_tx_buffer;
 
 uint32_t SystemCoreClock = 12000000;
 
@@ -89,263 +75,11 @@ static void board_setup_uart_clock(void)
     LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_UART;
 }
 
-static void board_setup_dali_clock(void)
-{
-    // enable GPIO, CT32B0 and CT32B1 blocks
-    LPC_SYSCON->SYSAHBCLKCTRL |= (SYSAHBCLKCTRL_CT32B0 | SYSAHBCLKCTRL_CT32B1 | SYSAHBCLKCTRL_GPIO);
-}
-
 static void board_setup_clocking(void)
 {
     board_setup_main_clock();
     board_setup_uart_clock();
     board_setup_dali_clock();
-}
-
-static void board_setup_pins(void)
-{
-    LPC_GPIO2->DIR |= (1U << LED_DALI_PIN) | (1U << LED_SERIAL_PIN) | (1U << LED_HEARTBEAT_PIN);
-    LPC_GPIO0->DIR |= (1U << 1U);
-}
-
-void board_reset_led(enum board_led id)
-{
-    if (id == LED_DALI) {
-        LPC_GPIO2->DATA &= ~(1U << LED_DALI_PIN);
-    }
-    if (id == LED_HEARTBEAT) {
-        LPC_GPIO2->DATA &= ~(1U << LED_HEARTBEAT_PIN);
-    }
-    if (id == LED_SERIAL) {
-        LPC_GPIO2->DATA &= ~(1U << LED_SERIAL_PIN);
-    }
-}
-
-void board_set_led(enum board_led id)
-{
-    if (id == LED_DALI) {
-        LPC_GPIO2->DATA |= (1U << LED_DALI_PIN);
-    }
-    if (id == LED_HEARTBEAT) {
-        LPC_GPIO2->DATA |= (1U << LED_HEARTBEAT_PIN);
-    }
-    if (id == LED_SERIAL) {
-        LPC_GPIO2->DATA |= (1U << LED_SERIAL_PIN);
-    }
-}
-
-void board_dali_tx_set(bool state)
-{
-    LPC_GPIO0->DIR |= (1U << 11U);
-    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (1 << IOCON_R_PIO0_11_FUNC_SHIFT)) |
-                           (IOCON_R_PIO0_11_MODE_MASK & (1 << IOCON_R_PIO0_11_MODE_SHIFT)) | (IOCON_R_PIO0_11_ADMODE);
-    if (state)
-        LPC_GPIO0->DATA |= (1U << 11U);
-    else
-        LPC_GPIO0->DATA &= ~(1U << 11U);
-}
-
-void board_dali_tx_timer_stop(void)
-{
-    board_dali_tx_set(DALI_TX_IDLE);
-    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR2I | TMR32B0MCR_MR2R | TMR32B0MCR_MR2S));
-    LPC_TMR32B0->EMR = (TMR32B0EMR_EM2 | (TMR32B0EMR_EMC2_MASK & (0 << TMR32B0EMR_EMC2_SHIFT)));
-}
-
-void board_dali_tx_timer_next(uint32_t count, enum board_toggle toggle)
-{
-    LPC_TMR32B0->MR3 = count;
-    if (toggle == DISABLE_TOGGLE) {
-        LPC_TMR32B0->EMR &= ~TMR32B0EMR_EMC3_MASK;
-    }
-}
-
-void board_dali_tx_timer_setup(uint32_t count)
-{
-    LPC_TMR32B0->TCR = TMR32B0TCR_CRST;
-    board_dali_tx_timer_stop();
-    board_dali_tx_timer_next(count, NOTHING);
-    // set prescaler to base rate
-    LPC_TMR32B0->PR = (BOARD_AHB_CLOCK / DALI_TIMER_RATE_HZ) - 1;
-    // set timer mode
-    LPC_TMR32B0->CTCR = 0;
-    // on MR3 match: IRQ
-    LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR3I | TMR32B0MCR_MR3R | TMR32B0MCR_MR3S)) | (TMR32B0MCR_MR3I);
-    // on MR3 match: toggle output - start with DALI active
-    LPC_TMR32B0->EMR = TMR32B0EMR_EM3 | (TMR32B0EMR_EMC3_MASK & (3 << TMR32B0EMR_EMC3_SHIFT));
-    // outputs are controlled by EMx
-    LPC_TMR32B0->PWMC = 0;
-    // pin function: CT32B0_MAT3
-    // function mode: no pull up/down resistors
-    // hysteresis disabled
-    // standard gpio
-    LPC_IOCON->R_PIO0_11 = (IOCON_R_PIO0_11_FUNC_MASK & (3 << IOCON_R_PIO0_11_FUNC_SHIFT)) |
-                           (IOCON_R_PIO0_11_MODE_MASK & (2 << IOCON_R_PIO0_11_MODE_SHIFT)) | (IOCON_R_PIO0_11_ADMODE);
-    // start timer
-    LPC_TMR32B0->TCR = TMR32B0TCR_CEN;
-}
-
-void TIMER32_0_IRQHandler(void)
-{
-    if (LPC_TMR32B0->IR & TMR32B0IR_MR3_INTERRUPT) {
-        LPC_TMR32B0->IR = TMR32B0IR_MR3_INTERRUPT;
-        dali_tx_irq_callback();
-    }
-}
-
-void TIMER32_1_IRQHandler(void)
-{
-    if (LPC_TMR32B1->IR & TMR32B0IR_MR0_INTERRUPT) {
-        LPC_TMR32B1->IR = TMR32B0IR_MR0_INTERRUPT;
-        dali_rx_irq_stopbit_match_callback();
-    }
-    if (LPC_TMR32B1->IR & TMR32B0IR_MR1_INTERRUPT) {
-        LPC_TMR32B1->IR = TMR32B0IR_MR1_INTERRUPT;
-        dali_rx_irq_period_match_callback();
-    }
-    if (LPC_TMR32B1->IR & TMR32B0IR_MR2_INTERRUPT) {
-        LPC_TMR32B1->IR = TMR32B0IR_MR2_INTERRUPT;
-        dali_rx_irq_query_match_callback();
-    }
-    if (LPC_TMR32B1->IR & TMR32B0IR_CR0_INTERRUPT) {
-        LPC_TMR32B1->IR = TMR32B0IR_CR0_INTERRUPT;
-        dali_rx_irq_capture_callback();
-    }
-}
-
-bool board_dali_rx_pin(void)
-{
-    return (LPC_GPIO1->DATA & (1 << 0));
-}
-
-uint32_t board_dali_rx_get_capture(void)
-{
-    return LPC_TMR32B1->CR0;
-}
-
-uint32_t board_dali_rx_get_count(void)
-{
-    return LPC_TMR32B1->TC;
-}
-
-void board_dali_rx_set_stopbit_match(uint32_t match_count)
-{
-    LPC_TMR32B1->MR0 = match_count;
-}
-
-void board_dali_rx_set_period_match(uint32_t match_count)
-{
-    LPC_TMR32B1->MR1 = match_count;
-}
-
-void board_dali_rx_set_query_match(uint32_t match_count)
-{
-    LPC_TMR32B1->MR2 = match_count;
-}
-
-void board_dali_rx_stopbit_match_enable(bool enable)
-{
-    if (enable) {
-        LPC_TMR32B1->MCR |= (TMR32B0MCR_MR0I);
-    } else {
-        LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR0I);
-    }
-}
-
-void board_dali_rx_period_match_enable(bool enable)
-{
-    if (enable) {
-        LPC_TMR32B1->MCR |= (TMR32B0MCR_MR1I);
-    } else {
-        LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR1I);
-    }
-}
-
-void board_dali_rx_query_match_enable(bool enable)
-{
-    if (enable) {
-        LPC_TMR32B1->MCR |= (TMR32B0MCR_MR2I);
-    } else {
-        LPC_TMR32B1->MCR &= ~(TMR32B0MCR_MR2I);
-    }
-}
-
-void board_dali_rx_timer_setup(void)
-{
-    LPC_TMR32B1->TCR = TMR32B0TCR_CRST;
-    // set prescaler to base rate
-    LPC_TMR32B1->PR = (BOARD_AHB_CLOCK / DALI_TIMER_RATE_HZ) - 1;
-    // set timer mode
-    LPC_TMR32B1->CTCR = 0;
-    // capture both edges, trigger IRQ
-    LPC_TMR32B1->CCR = (TMR32B0CCR_CAP0FE | TMR32B0CCR_CAP0RE | TMR32B0CCR_CAP0I);
-    board_dali_rx_stopbit_match_enable(false);
-    board_dali_rx_period_match_enable(false);
-    // pin function: CT32B1_CAP0
-    // function mode: enable pull up resistor
-    // hysteresis disabled
-    // digital function mode, standard gpio
-    LPC_IOCON->R_PIO1_0 = (IOCON_R_PIO1_0_FUNC_MASK & (3 << IOCON_R_PIO1_0_FUNC_SHIFT)) |
-                          (IOCON_R_PIO1_0_MODE_MASK & (2 << IOCON_R_PIO1_0_MODE_SHIFT)) | (IOCON_R_PIO1_0_ADMODE);
-    // start timer
-    LPC_TMR32B1->TCR = TMR32B0TCR_CEN;
-}
-
-static void board_heartbeat(__attribute__((unused)) TimerHandle_t dummy)
-{
-    static uint32_t counter = 0;
-
-    counter++;
-    if (board_dali_rx_pin() == DALI_RX_IDLE) {
-        if (counter & 1) {
-            board_set_led(LED_HEARTBEAT);
-        } else {
-            board_reset_led(LED_HEARTBEAT);
-        }
-    } else {
-        if (counter > SLOW_HEARTBEAT_COUNTER) {
-            board_set_led(LED_HEARTBEAT);
-            counter = 0;
-        } else
-            board_reset_led(LED_HEARTBEAT);
-    }
-}
-
-static void board_serial_timeout(__attribute__((unused)) TimerHandle_t dummy)
-{
-    board_reset_led(LED_SERIAL);
-}
-
-static void board_dali_timeout(__attribute__((unused)) TimerHandle_t dummy)
-{
-    board_reset_led(LED_DALI);
-}
-
-static void board_stop_all_timer(void)
-{
-    xTimerStop(board_heartbeat_timer_id, 0x0);
-    xTimerStop(board_serial_timer_id, 0x0);
-    xTimerStop(board_dali_timer_id, 0x0);
-}
-
-void board_error(void)
-{
-    board_set_led(LED_DALI);
-    board_set_led(LED_SERIAL);
-    board_set_led(LED_DALI);
-    board_stop_all_timer();
-}
-
-void board_flash_dali(void)
-{
-    board_set_led(LED_DALI);
-    xTimerStart(board_dali_timer_id, 0x0);
-}
-
-void board_flash_serial(void)
-{
-    board_set_led(LED_SERIAL);
-    xTimerStart(board_serial_timer_id, 0x0);
 }
 
 static void board_setup_IRQs(void)
@@ -359,18 +93,8 @@ static void board_setup_IRQs(void)
 
 void board_init(void)
 {
-    board_heartbeat_timer_id =
-        xTimerCreateStatic("heart_timer", HEARTBEAT_PERIOD_MS, pdTRUE, NULL, board_heartbeat, &board_heartbeat_buffer);
-    board_dali_timer_id =
-        xTimerCreateStatic("rx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_dali_timeout, &board_rx_buffer);
-    board_serial_timer_id =
-        xTimerCreateStatic("tx_timer", FLASH_PERIOD_MS, pdFALSE, NULL, board_serial_timeout, &board_tx_buffer);
-    xTimerStart(board_heartbeat_timer_id, 0x0);
-    board_setup_pins();
-    board_reset_led(LED_DALI);
-    board_reset_led(LED_DALI);
-    board_reset_led(LED_SERIAL);
     board_setup_IRQs();
+    board_led_init();
 }
 
 void board_system_init(void)
