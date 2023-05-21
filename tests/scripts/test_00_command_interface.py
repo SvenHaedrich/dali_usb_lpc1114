@@ -32,8 +32,9 @@ def test_version(dali_serial):
     "command,expected_result,detailed_code", 
     [
       ("Sx\r", DaliStatus.INTERFACE, 0xA3),
-      ("B200\r",DaliStatus.INTERFACE, 0xA3),
-      ("S0 10 1000\r",DaliStatus.INTERFACE, 0xA3), 
+      ("Y200\r",DaliStatus.INTERFACE, 0xA3),
+      ("S0 10 1000\r",DaliStatus.INTERFACE, 0xA3),
+      ("S1 10 A3CD\r",DaliStatus.LOOPBACK, 0x10), 
       ("S6 10 1000\r",DaliStatus.INTERFACE, 0xA3), 
       ("S7 10 1000\r",DaliStatus.INTERFACE, 0xA3), 
       ("S8 10 1000\r",DaliStatus.INTERFACE, 0xA3), 

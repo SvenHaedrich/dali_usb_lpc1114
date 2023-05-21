@@ -10,7 +10,7 @@ timeout_time_sec = 2
 def test_data_frames(dali_serial):
     dali_serial.start_receive()
     for i in range(0,0x100):
-        command = F"B{i:02x}\r"
+        command = F"Y{i:02x}\r"
         dali_serial.port.write(command.encode("utf-8"))
         assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
         assert dali_serial.length == 8        

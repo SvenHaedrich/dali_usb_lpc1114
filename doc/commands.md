@@ -40,13 +40,13 @@ Send an identical DALI repeated times. Note that sending repeated frames twice i
     EOL        : end of line = 0x0d
 
 - - -
-## Send Backframe `B`
+## Send Backframe `Y`
 
 Send a backframe. The command syntax is
 
-    'B' <value>
+    'Y' <value>
 
-    'B'     : command code
+    'Y'     : command code
     <value> : value to transmit in hex presentation (00..FF)
 
 ## Request Status `!`
@@ -57,13 +57,13 @@ Request a status frame. No end of line character required.
 
 Print information about the firmware. No end of line character required.
 - - -
-## Start Sequence `D`
+## Start Sequence `W`
 
 Start the defintion of a sequence.
 
-    'D' <period> EOL
+    'W' <period> EOL
 
-    'D'      : command code
+    'W'      : command code
     <period> : time in microseconds, given in hex 
                representation.
 

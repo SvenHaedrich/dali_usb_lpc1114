@@ -14,7 +14,7 @@ def set_up_and_send_sequence(serial, bit_timings):
     first_cmd = True
     for period in bit_timings:
         if first_cmd:
-            cmd = f"D{period:x}\r"
+            cmd = f"W{period:x}\r"
             first_cmd = False
         else:
             cmd = f"N{period:x}\r"
@@ -88,7 +88,7 @@ def test_more_legal_timings(dali_serial, index, value):
 def test_startbit_lengths(dali_serial, length_us, expected_code):
     short_time = 0.05
     # define sequence
-    cmd = f"D{length_us:x}\r"
+    cmd = f"W{length_us:x}\r"
     dali_serial.port.write(cmd.encode("utf-8"))
     time.sleep(short_time)
     # here we go
@@ -110,7 +110,7 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
 def test_system_failures(dali_serial, length_us):
     short_time = 0.05
     # set-up sequence
-    cmd = f"D{length_us:x}\r"
+    cmd = f"W{length_us:x}\r"
     dali_serial.port.write(cmd.encode("utf-8"))
     time.sleep(short_time)
     # here we go
