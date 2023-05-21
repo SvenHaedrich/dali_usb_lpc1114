@@ -58,6 +58,7 @@ void serial_print_frame(const struct dali_rx_frame frame)
 static void buffer_reset(void)
 {
     serial.buffer_index = 0;
+    serial.rx_buffer[serial.buffer_index] = '\000';
 }
 
 static void print_parameter_error(void)
