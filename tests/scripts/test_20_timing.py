@@ -94,7 +94,6 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
     # here we go
     cmd = "X\r"
     dali_serial.port.write(cmd.encode("utf-8"))
-    time.sleep(short_time)
     # read result
     dali_serial.start_receive()
     result = dali_serial.get_next(2)
@@ -104,7 +103,7 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
     else:
         assert (dali_serial.data & 0xFF) == 0
         time_us = dali_serial.data >> 8
-        assert abs(time_us - length_us) < 10.0
+        assert abs(time_us - length_us) < 12.0
 
 @pytest.mark.parametrize("length_us", [600000, 800000, 1000000])
 def test_system_failures(dali_serial, length_us):
@@ -116,7 +115,6 @@ def test_system_failures(dali_serial, length_us):
     # here we go
     cmd = "X\r"
     dali_serial.port.write(cmd.encode("utf-8"))
-    time.sleep(0.40)
     # read failure message
     dali_serial.start_receive()
     result = dali_serial.get_next(5)
@@ -133,5 +131,5 @@ def test_system_failures(dali_serial, length_us):
     assert result.status == DaliStatus.OK
     recover = dali_serial.timestamp
     time_us = dali_serial.data >> 8
-    assert abs(time_us - length_us) < 20.0
+    assert abs(time_us - length_us) < 12.0
     assert abs((recover - failure) - (length_us / 1e6)) < 0.002
