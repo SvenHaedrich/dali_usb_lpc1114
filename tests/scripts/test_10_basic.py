@@ -12,9 +12,10 @@ def test_data_frames(dali_serial):
     for i in range(0,0x100):
         command = F"Y{i:02x}\r"
         dali_serial.port.write(command.encode("utf-8"))
-        assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
-        assert dali_serial.length == 8        
-        assert dali_serial.data == i
+        dali_serial.get_next(timeout_time_sec)
+        assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+        assert dali_serial.rx_frame.length == 8        
+        assert dali_serial.rx_frame.data == i
 
 @pytest.mark.parametrize("code",[0x0000,0x0001,0x0002,0x0004,0x0008,0x000F,0x0010,0x0020,0x0040,
     0x0080,0x00F0,0x0100,0x0200,0x0400,0x0800,0x0F00,0x1000,0x2000,0x4000,0x8000,0xF000,0x5555,
@@ -23,9 +24,10 @@ def test_16bit_pattern(dali_serial,code):
     dali_serial.start_receive()
     command = F"S1 10 {code:04x}\r"
     dali_serial.port.write(command.encode("utf-8"))
-    assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
-    assert dali_serial.length == 16
-    assert dali_serial.data == code
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali_serial.rx_frame.length == 16
+    assert dali_serial.rx_frame.data == code
 
 @pytest.mark.parametrize("code",[0x00000000,0x00000001,0x00000002,0x00000004,
     0x00000008,0x0000000F,0x00000010,0x00000020,0x00000040,0x00000080,0x000000F0,
@@ -38,6 +40,7 @@ def test_32bit_pattern(dali_serial,code):
     dali_serial.start_receive()
     command = F"S1 20 {code:08x}\r"
     dali_serial.port.write(command.encode("utf-8"))
-    assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
-    assert dali_serial.length == 32
-    assert dali_serial.data == code
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali_serial.rx_frame.length == 32
+    assert dali_serial.rx_frame.data == code

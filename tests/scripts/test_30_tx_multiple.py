@@ -4,7 +4,7 @@ import time
 from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
-
+timeout_time_sec = 2
 
 @pytest.mark.parametrize(
     "cmd, settling, data",
@@ -24,10 +24,12 @@ logger = logging.getLogger(__name__)
 def test_settling_priority(dali_serial, cmd, settling, data):
     dali_serial.start_receive()
     dali_serial.port.write(cmd.encode("utf-8"))
-    assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
-    timestamp_1 = dali_serial.timestamp
-    assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
-    timestamp_2 = dali_serial.timestamp
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    timestamp_1 = dali_serial.rx_frame.timestamp
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    timestamp_2 = dali_serial.rx_frame.timestamp
     delta = timestamp_2 - timestamp_1
     fullbit_time = 833 / 1000000
     expected_delta = 17 * fullbit_time + (settling / 1000000)
@@ -57,4 +59,5 @@ def test_repeat(dali_serial, repeat, data):
     dali_serial.start_receive()
     dali_serial.port.write(cmd.encode("utf-8"))
     for j in range(repeat + 1):
-        assert dali_serial.get_next(2).status == DaliStatus.LOOPBACK
+        dali_serial.get_next(timeout_time_sec)
+        assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK

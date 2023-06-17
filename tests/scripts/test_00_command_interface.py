@@ -44,5 +44,6 @@ def test_version(dali_serial):
 def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
     dali_serial.start_receive()
     dali_serial.port.write(command.encode("utf-8"))
-    assert dali_serial.get_next(2).status == expected_result
-    assert dali_serial.length == detailed_code
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == expected_result
+    assert dali_serial.rx_frame.length == detailed_code

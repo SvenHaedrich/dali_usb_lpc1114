@@ -6,7 +6,7 @@ from connection.serial import DaliSerial
 from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
-
+timeout_time_sec = 2
 
 def set_up_and_send_sequence(serial, bit_timings):
     short_time = 0.01
@@ -25,10 +25,10 @@ def set_up_and_send_sequence(serial, bit_timings):
 
 
 def read_result_and_assert(serial, length, data):
-    result = serial.get_next(2)
-    assert result.status == DaliStatus.LOOPBACK
-    assert serial.length == length
-    assert serial.data == data
+    serial.get_next(timeout_time_sec)
+    assert serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert serial.rx_frame.length == length
+    assert serial.rx_frame.data == data
 
 
 def test_legal_bittiming(dali_serial):
@@ -96,13 +96,13 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
     dali_serial.port.write(cmd.encode("utf-8"))
     # read result
     dali_serial.start_receive()
-    result = dali_serial.get_next(2)
-    assert result.status == expected_code
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == expected_code
     if expected_code == DaliStatus.LOOPBACK:
-        assert (dali_serial.data & 0xFF) == 0
+        assert (dali_serial.rx_frame.data & 0xFF) == 0
     else:
-        assert (dali_serial.data & 0xFF) == 0
-        time_us = dali_serial.data >> 8
+        assert (dali_serial.rx_frame.data & 0xFF) == 0
+        time_us = dali_serial.rx_frame.data >> 8
         assert abs(time_us - length_us) < 12.0
 
 @pytest.mark.parametrize("length_us", [600000, 800000, 1000000])
@@ -117,19 +117,19 @@ def test_system_failures(dali_serial, length_us):
     dali_serial.port.write(cmd.encode("utf-8"))
     # read failure message
     dali_serial.start_receive()
-    result = dali_serial.get_next(5)
-    assert result.status == DaliStatus.FAILURE
-    time_us = dali_serial.data >> 8
-    failure = dali_serial.timestamp
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.FAILURE
+    time_us = dali_serial.rx_frame.data >> 8
+    failure = dali_serial.rx_frame.timestamp
     assert time_us == 0
     # read recover message
     sleep_sec = 0.1
     if sleep_sec > 0:
         logger.debug(f"sleep {sleep_sec} sec")
         time.sleep(sleep_sec)
-    result = dali_serial.get_next(5)
-    assert result.status == DaliStatus.OK
-    recover = dali_serial.timestamp
-    time_us = dali_serial.data >> 8
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.OK
+    recover = dali_serial.rx_frame.timestamp
+    time_us = dali_serial.rx_frame.data >> 8
     assert abs(time_us - length_us) < 12.0
     assert abs((recover - failure) - (length_us / 1e6)) < 0.002
