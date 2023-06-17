@@ -1,10 +1,10 @@
 import pytest
 import logging
-import time
 from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
+
 
 @pytest.mark.parametrize(
     "cmd, settling, data",

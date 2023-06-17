@@ -1,5 +1,4 @@
 import pytest
-import serial
 import logging
 from connection.serial import DaliSerial
 

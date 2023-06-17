@@ -2,11 +2,11 @@ import pytest
 import logging
 import time
 
-from connection.serial import DaliSerial
 from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
+
 
 def set_up_and_send_sequence(serial, bit_timings):
     short_time = 0.01
@@ -104,6 +104,7 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
         assert (dali_serial.rx_frame.data & 0xFF) == 0
         time_us = dali_serial.rx_frame.data >> 8
         assert abs(time_us - length_us) < 12.0
+
 
 @pytest.mark.parametrize("length_us", [600000, 800000, 1000000])
 def test_system_failures(dali_serial, length_us):
