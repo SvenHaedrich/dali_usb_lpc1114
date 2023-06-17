@@ -4,6 +4,7 @@ import queue
 import threading
 import time
 from .status import DaliStatus
+from .frame import DaliFrame
 
 
 logger = logging.getLogger(__name__)
@@ -18,11 +19,11 @@ class DaliSerial:
         self.queue = queue.Queue(maxsize=self.QUEUE_MAXSIZE)
         self.port = serial.Serial(port=portname, baudrate=baudrate, timeout=0.2)
         self.transparent = transparent
-        self.length = None
-        self.data = None
         self.keep_running = False
+        self.rx_frame = None
 
-    def parse(self, line):
+    @staticmethod
+    def parse(line: str):
         try:
             start = line.find(ord("{")) + 1
             end = line.find(ord("}"))
@@ -66,27 +67,59 @@ class DaliSerial:
         try:
             result = self.queue.get(block=True, timeout=timeout)
         except queue.Empty:
-            return DaliStatus(status=DaliStatus.TIMEOUT)
+            self.rx_frame = DaliFrame(status=DaliStatus(status=DaliStatus.TIMEOUT))
+            return
         if result is None:
-            return DaliStatus(status=DaliStatus.GENERAL)
-        self.timestamp = result[0]
-        self.length = result[2]
-        self.data = result[3]
-        return DaliStatus(result[1], self.length, self.data)
+            self.rx_frame = DaliFrame(status=DaliStatus(status=DaliStatus.GENERAL))
+            return
+        self.rx_frame = DaliFrame(
+            timestamp=result[0],
+            length=result[2],
+            data=result[3],
+            status=DaliStatus(result[1], result[2], result[3]),
+        )
+        return
 
-    def transmit(self, length=0, data=0, priority=1, send_twice=False, block=False):
-        logger.debug("transmit")
-        if send_twice:
-            self.port.write(f"T{priority} {length:X} {data:X}\r".encode("utf-8"))
+    def transmit(self, frame: DaliFrame, block: bool = False):
+        if frame.send_twice:
+            command = f"S{frame.priority} {frame.length:X}+{frame.data:X}\r".encode(
+                "utf-8"
+            )
         else:
-            self.port.write(f"S{priority} {length:X} {data:X}\r".encode("utf-8"))
+            command = f"S{frame.priority} {frame.length:X} {frame.data:X}\r".encode(
+                "utf-8"
+            )
+        logger.debug(f"write <{command}>")
+        self.port.write(command)
         if block:
-            if not self.keep_running:
-                raise Exception("receive must be active for blocking call to transmit.")
-                self.get_next()
-                if self.send_sequence_number != self.receive_sequence_number:
-                    raise Exception("expected same sequence number.")
+            self.get_next(5)
 
+    def query_reply(self, frame: DaliFrame):
+        if not self.keep_running:
+            logger.error("read thread is not running")
+        logger.debug("flush queue")
+        while not self.queue.empty():
+            self.queue.get()
+        if frame.send_twice:
+            command = f"Q{frame.priority} {frame.length:X}+{frame.data:X}\r".encode(
+                "utf-8"
+            )
+        else:
+            command = f"Q{frame.priority} {frame.length:X} {frame.data:X}\r".encode(
+                "utf-8"
+            )
+        logger.debug(f"write <{command}>")
+        self.port.write(command)
+        logger.debug("read loopback")
+        self.get_next(timeout=1)
+        if (
+            self.rx_frame.status.status != DaliStatus.LOOPBACK
+            or self.rx_frame.data != frame.data
+            or self.rx_frame.length != frame.length
+        ):
+            return
+        logger.debug("read backframe")
+        self.get_next(timeout=1)
 
     def close(self):
         logger.debug("close connection")

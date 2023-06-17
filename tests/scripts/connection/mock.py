@@ -16,15 +16,15 @@ class DaliMock:
         logger.debug("get next")
         return
 
-    def transmit(self, length=0, data=0, priority=1, send_twice=False):
+    def transmit(self, frame, block=False):
         logger.debug("transmit")
-        if send_twice:
-            print(f"T{priority} {length:X} {data:X}")
+        if frame.send_twice:
+            print(f"T{frame.priority} {frame.length:X} {frame.data:X}")
         else:
-            print(f"S{priority} {length:X} {data:X}")
-        self.last_transmit = data
-        self.data = data
-        self.length = length
+            print(f"S{frame.priority} {frame.length:X} {frame.data:X}")
+        self.last_transmit = frame.data
+        self.data = frame.data
+        self.length = frame.length
 
     def close(self):
         logger.debug("close mock interface")
