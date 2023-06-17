@@ -7,3 +7,4 @@ __pycache__
 ozone_dali_usb.jdebug
 ozone_dali_usb.jdebug.user
 dali-usb.code-workspace
+*.log

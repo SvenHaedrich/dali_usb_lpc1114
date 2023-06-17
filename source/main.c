@@ -15,15 +15,16 @@
 #include "task.h"
 
 #include "board/board.h"
+#include "board/led.h"
 #include "version.h"
 #include "dali_101_lpc/dali_101.h"
 #include "serial.h"
 
-#if !(DALI_101_MAJOR_VERSION == 2U)
-#error "expected DALI 101 major version 2."
+#if !(DALI_101_MAJOR_VERSION == 3U)
+#error "expected DALI 101 major version 3."
 #endif
-#if !(DALI_101_MINOR_VERSION == 1U)
-#error "expected DALI 101 minor version 1."
+#if !(DALI_101_MINOR_VERSION == 0U)
+#error "expected DALI 101 minor version 0."
 #endif
 
 #define MAIN_TASK_STACKSIZE (2 * configMINIMAL_STACK_SIZE)
@@ -35,6 +36,7 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
     struct dali_tx_frame tx_frame;
     while (true) {
         if (dali_101_get(&rx_frame, 0)) {
+            board_flash(LED_DALI);
             serial_print_frame(rx_frame);
         }
         if (serial_get(&tx_frame, 0)) {

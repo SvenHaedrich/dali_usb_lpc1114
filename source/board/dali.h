@@ -7,7 +7,7 @@
 
 enum board_toggle { NOTHING, DISABLE_TOGGLE };
 
-void board_dali_init(void);
+void board_setup_dali_clock(void);
 
 void board_dali_tx_set(bool state);
 void board_dali_tx_timer_stop(void);
@@ -22,3 +22,5 @@ void board_dali_rx_set_stopbit_match(uint32_t match);
 void board_dali_rx_stopbit_match_enable(bool enable);
 void board_dali_rx_set_period_match(uint32_t match);
 void board_dali_rx_period_match_enable(bool enable);
+void board_dali_rx_set_query_match(uint32_t match_count);
+void board_dali_rx_query_match_enable(bool enable);

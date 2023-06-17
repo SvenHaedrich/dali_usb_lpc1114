@@ -1,0 +1,8 @@
+Log
+Speed 4000
+Connect
+Erase
+LoadFile build/dali_usb.bin 
+VerifyBin
+Reset
+Exit
