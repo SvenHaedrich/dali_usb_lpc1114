@@ -78,7 +78,9 @@ class DaliSerial:
             return
 
     def transmit(self, frame: DaliFrame, block: bool = False):
-        if frame.send_twice:
+        if frame.length == 8:
+            command = f"Y{frame.data:X}\r".encode("utf-8")
+        elif frame.send_twice:
             command = f"S{frame.priority} {frame.length:X}+{frame.data:X}\r".encode(
                 "utf-8"
             )
