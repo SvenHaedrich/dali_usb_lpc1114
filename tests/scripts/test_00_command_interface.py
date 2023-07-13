@@ -48,3 +48,19 @@ def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == expected_result
     assert dali_serial.rx_frame.length == detailed_code
+
+
+def test_input_queue(dali_serial):
+    cmd_one = "S1 10 FF01\r"
+    cmd_two = "S1 10 FF02\r"
+    dali_serial.start_receive()
+    dali_serial.port.write(cmd_one.encode("utf-8"))
+    dali_serial.port.write(cmd_one.encode("utf-8"))
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali_serial.rx_frame.length == 0x10
+    assert dali_serial.rx_frame.data == 0xFF01
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali_serial.rx_frame.length == 0x10
+    assert dali_serial.rx_frame.data == 0xFF02
