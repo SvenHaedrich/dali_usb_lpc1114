@@ -1,6 +1,6 @@
 #pragma once
 #define DALI_101_MAJOR_VERSION (3)
-#define DALI_101_MINOR_VERSION (0)
+#define DALI_101_MINOR_VERSION (1)
 #define DALI_MAX_DATA_LENGTH (32U)
 
 enum dali_tx_priority {
@@ -30,6 +30,7 @@ enum dali_status {
     DALI_ERROR_BAD_ARGUMENT = 0xA1,
     DALI_ERROR_QUEUE_FULL = 0xA2,
     DALI_ERROR_BAD_COMMAND = 0xA3,
+
 };
 
 struct dali_rx_frame {
@@ -51,6 +52,7 @@ struct dali_tx_frame {
 void dali_101_init(void);
 void dali_101_send(const struct dali_tx_frame frame);
 bool dali_101_get(struct dali_rx_frame* frame, TickType_t wait);
+bool dali_101_tx_is_idle(void);
 void dali_101_sequence_start(void);
 void dali_101_sequence_next(uint32_t period_us);
 void dali_101_sequence_execute(void);
