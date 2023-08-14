@@ -26,7 +26,7 @@ def test_version(dali_serial):
                     continue
     assert major == 2
     assert minor == 0
-    assert bugfix >= 0
+    assert bugfix >= 1
 
 
 @pytest.mark.parametrize(
@@ -48,3 +48,37 @@ def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == expected_result
     assert dali_serial.rx_frame.length == detailed_code
+
+
+def test_input_queue(dali_serial):
+    cmd_one = "S1 10 FF01\r"
+    cmd_two = "S1 10 FF02\r"
+    dali_serial.start_receive()
+    dali_serial.port.write(cmd_one.encode("utf-8"))
+    dali_serial.port.write(cmd_two.encode("utf-8"))
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali_serial.rx_frame.length == 0x10
+    assert dali_serial.rx_frame.data == 0xFF01
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali_serial.rx_frame.length == 0x10
+    assert dali_serial.rx_frame.data == 0xFF02
+
+
+def test_queue_overflow(dali_serial):
+    test_cmd = "S1 10 FF0A\r"
+    dali_serial.start_receive()
+    queue_size = 5
+    for i in range(queue_size + 2):
+        dali_serial.port.write(test_cmd.encode("utf-8"))
+    for i in range(queue_size + 2):
+        dali_serial.get_next(timeout_time_sec)
+        if dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK:
+            continue
+        break
+    assert dali_serial.rx_frame.status.status == DaliStatus.INTERFACE
+    # read until no message is left
+    for i in range(queue_size + 2):
+        dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.TIMEOUT

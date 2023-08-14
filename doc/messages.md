@@ -15,7 +15,7 @@ DOutput messages use the following format (except for the firmware information m
 
 Status Codes
 
- | Status Code | Description                      | Information in `data`     |
+ | Status Code | Description               | Information in `data`     |
  |------|----------------------------------|---------------------------|
  |   80 | No error                         | N/A                       |
  |   81 | Timeout                          | N/A                       |
@@ -32,6 +32,7 @@ Status Codes
  |   A1 | Bad argument to command          | N/A                       |
  |   A2 | Queue is full                    | N/A                       |
  |   A3 | Bad command                      | N/A                       |
+ |   A4 | Buffer overflow                  | N/A                       |
 
 ```mermaid
 sequenceDiagram

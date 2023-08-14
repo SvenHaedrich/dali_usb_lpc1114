@@ -19,7 +19,7 @@ def set_up_and_send_sequence(serial, bit_timings):
         else:
             cmd = f"N{period:x}\r"
         serial.port.write(cmd.encode("utf-8"))
-        time.sleep(short_time)
+        # time.sleep(short_time)
     # here we go
     serial.port.write("X\r".encode("utf-8"))
 
@@ -134,3 +134,23 @@ def test_system_failures(dali_serial, length_us):
     time_us = dali_serial.rx_frame.data >> 8
     assert abs(time_us - length_us) < 12.0
     assert abs((recover - failure) - (length_us / 1e6)) < 0.002
+    dali_serial.get_next(timeout_time_sec)
+
+
+def test_backframe_timing(dali_serial):
+    forward_frame = "S1 10 FF00\r"
+    backward_frame = "YFF\r"
+    dali_serial.start_receive()
+    dali_serial.port.write(forward_frame.encode("utf-8"))
+    dali_serial.port.write(backward_frame.encode("utf-8"))
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    timestamp_1 = dali_serial.rx_frame.timestamp
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    timestamp_2 = dali_serial.rx_frame.timestamp
+    delta = timestamp_2 - timestamp_1
+    fullbit_time = 833 / 1000000
+    expected_delta = 17 * fullbit_time + (12.4 / 1000)
+    logger.debug(f"delta is {delta} expected is {expected_delta}")
+    assert delta < expected_delta
