@@ -42,7 +42,7 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
         if (serial_get(&tx_frame, 0)) {
             dali_101_send(tx_frame);
         }
-        vTaskDelay((2 / portTICK_PERIOD_MS));
+        // vTaskDelay((2 / portTICK_PERIOD_MS));
     }
 }
 
