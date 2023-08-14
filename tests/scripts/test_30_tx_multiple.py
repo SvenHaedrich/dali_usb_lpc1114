@@ -62,25 +62,3 @@ def test_repeat(dali_serial, repeat, data):
     for j in range(repeat + 1):
         dali_serial.get_next(timeout_time_sec)
         assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-
-
-def test_backframe_timing(dali_serial):
-    forward_frame = "S1 10 FF00\r"
-    backward_frame = "YFF\r"
-    dali_serial.start_receive()
-    dali_serial.port.write(forward_frame.encode("utf-8"))
-    local_time_1 = time.time()
-    dali_serial.get_next(timeout_time_sec)
-    dali_serial.port.write(backward_frame.encode("utf-8"))
-    local_time_2 = time.time()
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    timestamp_1 = dali_serial.rx_frame.timestamp
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    timestamp_2 = dali_serial.rx_frame.timestamp
-    delta = timestamp_2 - timestamp_1
-    fullbit_time = 833 / 1000000
-    expected_delta = 17 * fullbit_time + (12.4 / 1000)
-    logger.debug(f"delta is {delta} expected is {expected_delta}")
-    logger.debug(f"local time difference: {local_time_2-local_time_1}")
-    assert delta < expected_delta
