@@ -60,6 +60,7 @@ static const struct _rx_timing {
 // module variables
 struct _rx {
     uint32_t last_edge_count;
+    uint32_t last_full_frame_count;
     uint32_t edge_count;
     enum rx_status status;
     struct dali_rx_frame frame;
@@ -199,16 +200,22 @@ static enum rx_status check_inside_timing(void)
 
 static void finish_frame(void)
 {
+    rx.last_full_frame_count = rx.last_edge_count;
     const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     if (result == errQUEUE_FULL) {
         configASSERT(false);
     }
 }
 
-void rx_schedule_frame(void)
+void rx_schedule_frame(bool is_backframe)
 {
-    const uint32_t min_settling_time = tx_get_settling_time();
-    uint32_t min_start_count = min_settling_time + rx.last_edge_count;
+    uint32_t min_start_count = tx_get_settling_time();
+    if (is_backframe) {
+        min_start_count += rx.last_full_frame_count;
+    } else {
+        min_start_count += rx.last_edge_count;
+    }
+
     const uint32_t timer_now = board_dali_rx_get_count();
     if (timer_now > min_start_count) {
         dali_tx_start_send();
