@@ -30,7 +30,6 @@ enum dali_status {
     DALI_ERROR_BAD_ARGUMENT = 0xA1,
     DALI_ERROR_QUEUE_FULL = 0xA2,
     DALI_ERROR_BAD_COMMAND = 0xA3,
-
 };
 
 struct dali_rx_frame {
