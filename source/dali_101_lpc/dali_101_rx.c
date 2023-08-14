@@ -241,7 +241,7 @@ static void manage_tx(void)
         return;
     }
     if (dali_tx_repeat()) {
-        rx_schedule_frame();
+        rx_schedule_frame(false);
         return;
     }
     tx_reset();
