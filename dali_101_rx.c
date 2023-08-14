@@ -71,7 +71,6 @@ struct _rx {
 // external references from tx module
 extern void dali_tx_init(void);
 extern void dali_tx_start_send(void);
-extern bool dali_tx_is_idle(void);
 extern uint32_t tx_get_settling_time(void);
 extern bool dali_tx_repeat(void);
 extern void tx_reset(void);
@@ -231,7 +230,7 @@ void rx_schedule_query(void)
 
 static void manage_tx(void)
 {
-    if (dali_tx_is_idle()) {
+    if (dali_101_tx_is_idle()) {
         return;
     }
     if (dali_tx_repeat()) {
@@ -262,7 +261,7 @@ static void process_capture_notification(void)
             set_new_status(START_BIT_START);
             rx.last_data_bit = true;
             rx.frame.timestamp = xTaskGetTickCount();
-            rx.frame.loopback = !dali_tx_is_idle();
+            rx.frame.loopback = !dali_101_tx_is_idle();
             board_dali_rx_query_match_enable(false);
         }
         break;
