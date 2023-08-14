@@ -120,6 +120,7 @@ void dali_tx_irq_callback(void)
     }
     board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
+    tx.index_next = 0;
     if (tx.is_query) {
         rx_schedule_query();
         tx.is_query = false;
@@ -134,7 +135,7 @@ void dali_tx_start_send(void)
     }
 }
 
-bool dali_tx_is_idle(void)
+bool dali_101_tx_is_idle(void)
 {
     return (tx.index_next == 0);
 }
