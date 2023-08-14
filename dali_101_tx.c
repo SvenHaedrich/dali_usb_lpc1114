@@ -33,7 +33,7 @@ struct _tx {
 } tx;
 
 extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
-extern void rx_schedule_frame(void);
+extern void rx_schedule_frame(bool is_backframe);
 extern void rx_schedule_query(void);
 
 void tx_reset(void)
@@ -120,7 +120,6 @@ void dali_tx_irq_callback(void)
     }
     board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
-    tx.index_next = 0;
     if (tx.is_query) {
         rx_schedule_query();
         tx.is_query = false;
@@ -157,13 +156,13 @@ uint32_t tx_get_settling_time(void)
 void dali_101_send(const struct dali_tx_frame frame)
 {
     tx_reset();
-    tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
-    tx.repeat = frame.repeat;
-    tx.is_query = frame.is_query;
     if (calculate_counts(frame)) {
         return;
     }
-    rx_schedule_frame();
+    tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
+    tx.repeat = frame.repeat;
+    tx.is_query = frame.is_query;
+    rx_schedule_frame(frame.priority == DALI_BACKWARD_FRAME);
     return;
 }
 
