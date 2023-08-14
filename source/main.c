@@ -39,10 +39,12 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
             board_flash(LED_DALI);
             serial_print_frame(rx_frame);
         }
+        if (dali_101_tx_is_idle()) {
         if (serial_get(&tx_frame, 0)) {
             dali_101_send(tx_frame);
         }
     }
+}
 }
 
 int main(void)
