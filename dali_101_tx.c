@@ -3,14 +3,10 @@
 
 #include "FreeRTOS.h" // TickType_t in dali_101.h
 
-#include "log/log.h"    // logging
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self-include for consistency
 
-#define MAX_DATA_LENGTH (32U)
-#define COUNT_ARRAY_SIZE (2U + MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
-
-extern void rx_schedule_frame(void);
+#define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
 
 // see IEC 62386-101-2018 Table 16 - Transmitter bit timing
 static const struct _dali_timing {
@@ -31,12 +27,14 @@ struct _tx {
     uint_fast8_t index_next;
     uint_fast8_t index_max;
     bool state_now;
-    bool buffer_is_free;
     uint8_t repeat;
     uint32_t min_settling_time;
+    bool is_query;
 } tx;
 
-extern void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us);
+extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
+extern void rx_schedule_frame(bool is_backframe);
+extern void rx_schedule_query(void);
 
 void tx_reset(void)
 {
@@ -44,7 +42,6 @@ void tx_reset(void)
     tx.index_next = 0;
     tx.index_max = 0;
     tx.state_now = true;
-    tx.buffer_is_free = true;
 }
 
 static bool add_bit(bool value)
@@ -95,7 +92,7 @@ static bool add_stop_condition(void)
 
 static bool calculate_counts(const struct dali_tx_frame frame)
 {
-    if (frame.length > MAX_DATA_LENGTH) {
+    if (frame.length > DALI_MAX_DATA_LENGTH) {
         generate_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
         return true;
     }
@@ -123,6 +120,10 @@ void dali_tx_irq_callback(void)
     }
     board_dali_tx_set(DALI_TX_IDLE);
     board_dali_tx_timer_stop();
+    if (tx.is_query) {
+        rx_schedule_query();
+        tx.is_query = false;
+    }
 }
 
 void dali_tx_start_send(void)
@@ -133,7 +134,7 @@ void dali_tx_start_send(void)
     }
 }
 
-bool dali_tx_is_idle(void)
+bool dali_101_tx_is_idle(void)
 {
     return (tx.index_next == 0);
 }
@@ -154,23 +155,20 @@ uint32_t tx_get_settling_time(void)
 
 void dali_101_send(const struct dali_tx_frame frame)
 {
-    log_debug("%02d {%02x %08x}", frame.priority, frame.length, frame.data);
     tx_reset();
-    tx.buffer_is_free = false;
-    tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
-    tx.repeat = frame.repeat;
     if (calculate_counts(frame)) {
         return;
     }
-    rx_schedule_frame();
+    tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
+    tx.repeat = frame.repeat;
+    tx.is_query = frame.is_query;
+    rx_schedule_frame(frame.priority == DALI_BACKWARD_FRAME);
     return;
 }
 
 void dali_101_sequence_start(void)
 {
     tx_reset();
-    tx.buffer_is_free = false;
-    //    tx.min_settling_time = dali_timing.settling_time_us[DALI_PRIORITY_1];
     tx.min_settling_time = 0;
     tx.repeat = 0;
 }

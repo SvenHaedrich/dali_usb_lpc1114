@@ -6,7 +6,6 @@
 #include "task.h"
 #include "queue.h"
 
-#include "log/log.h"    // logging
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self include for consistency
 
@@ -18,6 +17,7 @@
 #define NOTIFY_CAPTURE (0x01)
 #define NOTIFY_MATCH (0x02)
 #define NOTIFY_PRIORITY (0x04)
+#define NOTIFY_QUERY (0x08)
 
 #define QUEUE_SIZE (5U)
 
@@ -34,6 +34,7 @@ enum rx_status {
 
 // see IEC 62386-101-2018 Table 18, Table 19 - Transmitter bit timing
 // see IEC 62386-101-2018 Table 4 - Power interruption of bus power
+// see IEC 62386-101-2022 Table 20 - Receiver settling time values
 static const struct _rx_timing {
     uint32_t min_half_bit_begin_us;
     uint32_t max_half_bit_begin_us;
@@ -43,6 +44,7 @@ static const struct _rx_timing {
     uint32_t max_full_bit_inside_us;
     uint32_t min_stop_condition_us;
     uint32_t min_failure_condition_us;
+    uint32_t max_backward_settling_us;
 } rx_timing = {
     .min_half_bit_begin_us = 333, // Table 18
     .max_half_bit_begin_us = (500 + 10),
@@ -52,11 +54,13 @@ static const struct _rx_timing {
     .max_full_bit_inside_us = 1000,
     .min_stop_condition_us = 2400,
     .min_failure_condition_us = 500000, // Table 4
+    .max_backward_settling_us = 13400,  // Table 20
 };
 
 // module variables
 struct _rx {
     uint32_t last_edge_count;
+    uint32_t last_full_frame_count;
     uint32_t edge_count;
     enum rx_status status;
     struct dali_rx_frame frame;
@@ -68,7 +72,6 @@ struct _rx {
 // external references from tx module
 extern void dali_tx_init(void);
 extern void dali_tx_start_send(void);
-extern bool dali_tx_is_idle(void);
 extern uint32_t tx_get_settling_time(void);
 extern bool dali_tx_repeat(void);
 extern void tx_reset(void);
@@ -100,6 +103,14 @@ void dali_rx_irq_period_match_callback(void)
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
+void dali_rx_irq_query_match_callback(void)
+{
+    BaseType_t higher_priority_woken = pdFALSE;
+    xTaskNotifyFromISR(rx.task_handle, NOTIFY_QUERY, eSetBits, &higher_priority_woken);
+    board_dali_rx_query_match_enable(false);
+    portYIELD_FROM_ISR(higher_priority_woken);
+}
+
 static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
 {
     if ((time_difference_us > rx_timing.max_half_bit_begin_us) ||
@@ -108,7 +119,7 @@ static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
     return true;
 }
 
-void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
+void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
         return;
@@ -119,11 +130,23 @@ void generate_error_frame(enum dali_error code, uint8_t bit, uint32_t time_us)
     if (rx.status == LOW) {
         rx.frame.timestamp = xTaskGetTickCount() - (rx_timing.min_failure_condition_us / 1000);
     }
-    rx.frame.is_status = true;
-    rx.frame.length = code;
+    rx.frame.status = code;
+    rx.frame.length = 0;
     rx.frame.data = (time_us & 0xffffff) << 8 | bit;
     xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     rx.status = ERROR_IN_FRAME;
+}
+
+static void generate_timeout_frame(void)
+{
+    if (rx.status == IDLE) {
+        rx.frame.timestamp = xTaskGetTickCount();
+        rx.frame.status = DALI_TIMEOUT;
+        rx.frame.length = 0;
+        rx.frame.loopback = false;
+        rx.frame.data = 0;
+        xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+    }
 }
 
 static bool is_valid_halfbit_inside_timing(const uint32_t time_difference_us)
@@ -177,17 +200,22 @@ static enum rx_status check_inside_timing(void)
 
 static void finish_frame(void)
 {
-    log_debug("{%08x-%02x %08x}", rx.frame.timestamp, rx.frame.length, rx.frame.data);
+    rx.last_full_frame_count = rx.last_edge_count;
     const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
     if (result == errQUEUE_FULL) {
         configASSERT(false);
     }
 }
 
-void rx_schedule_frame(void)
+void rx_schedule_frame(bool is_backframe)
 {
-    uint32_t min_settling_time = tx_get_settling_time();
-    uint32_t min_start_count = min_settling_time + rx.last_edge_count;
+    uint32_t min_start_count = tx_get_settling_time();
+    if (is_backframe) {
+        min_start_count += rx.last_full_frame_count;
+    } else {
+        min_start_count += rx.last_edge_count;
+    }
+
     const uint32_t timer_now = board_dali_rx_get_count();
     if (timer_now > min_start_count) {
         dali_tx_start_send();
@@ -199,13 +227,21 @@ void rx_schedule_frame(void)
     board_dali_rx_period_match_enable(true);
 }
 
+void rx_schedule_query(void)
+{
+    const uint32_t timer_now = board_dali_rx_get_count();
+    const uint32_t query_count = timer_now + rx_timing.max_backward_settling_us;
+    board_dali_rx_set_query_match(query_count);
+    board_dali_rx_query_match_enable(true);
+}
+
 static void manage_tx(void)
 {
-    if (dali_tx_is_idle()) {
+    if (dali_101_tx_is_idle()) {
         return;
     }
     if (dali_tx_repeat()) {
-        rx_schedule_frame();
+        rx_schedule_frame(false);
         return;
     }
     tx_reset();
@@ -232,6 +268,8 @@ static void process_capture_notification(void)
             set_new_status(START_BIT_START);
             rx.last_data_bit = true;
             rx.frame.timestamp = xTaskGetTickCount();
+            rx.frame.loopback = !dali_101_tx_is_idle();
+            board_dali_rx_query_match_enable(false);
         }
         break;
     case START_BIT_START:
@@ -252,7 +290,7 @@ static void process_capture_notification(void)
         break;
     case LOW:
         if (board_dali_rx_pin() == DALI_RX_IDLE) {
-            enum dali_error code = DALI_ERROR_RECEIVE_START_TIMING;
+            enum dali_status code = DALI_ERROR_RECEIVE_START_TIMING;
             if (rx.frame.length > 1) {
                 code = DALI_ERROR_RECEIVE_DATA_TIMING;
             }
@@ -332,6 +370,9 @@ __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dumm
             if (notifications & NOTIFY_PRIORITY) {
                 dali_tx_start_send();
             }
+            if (notifications & NOTIFY_QUERY) {
+                generate_timeout_frame();
+            }
         }
     }
 }
@@ -365,9 +406,10 @@ static void dali_rx_init(void)
 
 void dali_101_request_status_frame(void)
 {
-    const struct dali_rx_frame status_frame = { .is_status = true,
+    const struct dali_rx_frame status_frame = { .loopback = false,
+                                                .status = (rx.status == IDLE) ? DALI_OK : DALI_SYSTEM_FAILURE,
                                                 .timestamp = xTaskGetTickCount(),
-                                                .length = (rx.status == IDLE) ? DALI_OK : DALI_SYSTEM_FAILURE,
+                                                .length = 0,
                                                 .data = 0 };
     xQueueSendToBack(rx.queue_handle, &status_frame, 0);
 }
