@@ -78,6 +78,9 @@ def test_more_legal_timings(dali_serial, index, value):
         (2000, DaliStatus.TIMING),
         (2500, DaliStatus.TIMING),
         (4000, DaliStatus.TIMING),
+        (5000, DaliStatus.TIMING),
+        (6000, DaliStatus.TIMING),
+        (75000, DaliStatus.TIMING),
         (10000, DaliStatus.TIMING),
         (20000, DaliStatus.TIMING),
         (50000, DaliStatus.TIMING),
@@ -154,3 +157,23 @@ def test_backframe_timing(dali_serial):
     expected_delta = 17 * fullbit_time + (12.4 / 1000)
     logger.debug(f"delta is {delta} expected is {expected_delta}")
     assert delta < expected_delta
+
+
+def test_kill_sequence(dali_serial):
+    dali_serial.start_receive()
+    assert dali_serial.rx_frame is None
+    # set up the fatal sequence
+    length_norm_us = 420
+    length_abnorm_us = 1000
+    dali_serial.port.write(f"W{length_norm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"N{length_abnorm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"X\r".encode("utf-8"))
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.TIMING
+    # check if interface is still alive
+    dali_serial.port.write(f"YFF\r".encode("utf-8"))
+    dali_serial.get_next(timeout_time_sec)
+    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+    assert dali, serial.rx_frame.data == 0xFF
