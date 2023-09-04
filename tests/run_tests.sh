@@ -1,8 +1,11 @@
 #!/bin/bash
 set +x
+echo "--- check virtual environment"
+[-f venv/bin/activate] || pyhton3 -m venv venv
 echo "--- activate virtual environemnt"
 source ./venv/bin/activate
 echo "--- update requirements"
-pip3 install -r requirements.txt
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 echo "--- execute script"
 pytest scripts/ $*
