@@ -1,6 +1,5 @@
 import pytest
 import logging
-import time
 from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
