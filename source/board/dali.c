@@ -31,7 +31,6 @@ void board_dali_tx_set(bool state)
 
 void board_dali_tx_timer_stop(void)
 {
-    board_dali_tx_set(DALI_TX_IDLE);
     LPC_TMR32B0->MCR = (LPC_TMR32B0->MCR & ~(TMR32B0MCR_MR2I | TMR32B0MCR_MR2R | TMR32B0MCR_MR2S));
     LPC_TMR32B0->EMR = (TMR32B0EMR_EM2 | (TMR32B0EMR_EMC2_MASK & (0 << TMR32B0EMR_EMC2_SHIFT)));
 }
