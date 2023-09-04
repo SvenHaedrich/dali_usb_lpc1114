@@ -4,7 +4,6 @@ build/
 venv/
 __pycache__
 .pytest_cache
-ozone_dali_usb.jdebug
-ozone_dali_usb.jdebug.user
+ozone*
 dali-usb.code-workspace
 *.log
