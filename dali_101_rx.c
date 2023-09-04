@@ -244,7 +244,6 @@ static void manage_tx(void)
         rx_schedule_frame(false);
         return;
     }
-    tx_reset();
 }
 
 static void rx_reset(void)
