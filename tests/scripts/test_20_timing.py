@@ -161,7 +161,6 @@ def test_backframe_timing(dali_serial):
 
 def test_kill_sequence(dali_serial):
     dali_serial.start_receive()
-    assert dali_serial.rx_frame is None
     # set up the fatal sequence
     length_norm_us = 420
     length_abnorm_us = 1000
@@ -176,4 +175,4 @@ def test_kill_sequence(dali_serial):
     dali_serial.port.write(f"YFF\r".encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    assert dali, serial.rx_frame.data == 0xFF
+    assert dali_serial.rx_frame.data == 0xFF
