@@ -38,6 +38,10 @@ extern void rx_schedule_query(void);
 
 void tx_reset(void)
 {
+    if (!dali_101_tx_is_idle()) {
+        board_dali_tx_set(DALI_TX_IDLE);
+        board_dali_tx_timer_stop();
+    }
     tx.count_now = 0;
     tx.index_next = 0;
     tx.index_max = 0;
@@ -124,14 +128,14 @@ void dali_tx_irq_callback(void)
         rx_schedule_query();
         tx.is_query = false;
     }
+    if (!tx.repeat)
+        tx.index_next = 0;
 }
 
 void dali_tx_start_send(void)
 {
-    if (tx.index_max) {
-        tx.index_next = 1;
-        board_dali_tx_timer_setup(tx.count[0]);
-    }
+    tx.index_next = 1;
+    board_dali_tx_timer_setup(tx.count[0]);
 }
 
 bool dali_101_tx_is_idle(void)
@@ -188,6 +192,7 @@ void dali_101_sequence_execute(void)
         generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
         return;
     }
+    tx.index_max--;
     dali_tx_start_send();
 }
 
