@@ -9,7 +9,6 @@ timeout_time_sec = 2
 
 
 def set_up_and_send_sequence(serial, bit_timings):
-    short_time = 0.01
     # set up sequence
     first_cmd = True
     for period in bit_timings:
@@ -19,7 +18,6 @@ def set_up_and_send_sequence(serial, bit_timings):
         else:
             cmd = f"N{period:x}\r"
         serial.port.write(cmd.encode("utf-8"))
-        # time.sleep(short_time)
     # here we go
     serial.port.write("X\r".encode("utf-8"))
 
