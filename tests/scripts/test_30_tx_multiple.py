@@ -62,3 +62,4 @@ def test_repeat(dali_serial, repeat, data):
     for j in range(repeat + 1):
         dali_serial.get_next(timeout_time_sec)
         assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+        assert dali_serial.rx_frame.data == data
