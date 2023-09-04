@@ -166,11 +166,11 @@ def test_kill_sequence(dali_serial):
     dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
     dali_serial.port.write(f"N{length_abnorm_us:x}\r".encode("utf-8"))
     dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
-    dali_serial.port.write(f"X\r".encode("utf-8"))
+    dali_serial.port.write("X\r".encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.TIMING
     # check if interface is still alive
-    dali_serial.port.write(f"YFF\r".encode("utf-8"))
+    dali_serial.port.write("YFF\r".encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
     assert dali_serial.rx_frame.data == 0xFF
