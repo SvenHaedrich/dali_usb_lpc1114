@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class DaliSerial:
-    DEFAULT_BAUDRATE = 115200
+    DEFAULT_BAUDRATE = 500000
     QUEUE_MAXSIZE = 40
     RECEIVE_TIMEOUT = 1
 

@@ -6,6 +6,7 @@ from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
+time_for_command_processing = 0.0005
 
 
 def set_up_and_send_sequence(serial, bit_timings):
@@ -18,6 +19,7 @@ def set_up_and_send_sequence(serial, bit_timings):
         else:
             cmd = f"N{period:x}\r"
         serial.port.write(cmd.encode("utf-8"))
+        time.sleep(time_for_command_processing)
     # here we go
     serial.port.write("X\r".encode("utf-8"))
 
@@ -143,6 +145,7 @@ def test_backframe_timing(dali_serial):
     backward_frame = "YFF\r"
     dali_serial.start_receive()
     dali_serial.port.write(forward_frame.encode("utf-8"))
+    time.sleep(time_for_command_processing)
     dali_serial.port.write(backward_frame.encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
@@ -163,9 +166,13 @@ def test_kill_sequence(dali_serial):
     length_norm_us = 420
     length_abnorm_us = 1000
     dali_serial.port.write(f"W{length_norm_us:x}\r".encode("utf-8"))
+    time.sleep(time_for_command_processing)
     dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
+    time.sleep(time_for_command_processing)
     dali_serial.port.write(f"N{length_abnorm_us:x}\r".encode("utf-8"))
+    time.sleep(time_for_command_processing)
     dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
+    time.sleep(time_for_command_processing)
     dali_serial.port.write("X\r".encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.TIMING

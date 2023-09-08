@@ -5,6 +5,7 @@ from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
+time_for_command_processing = 0.0005
 
 
 def test_version(dali_serial):
@@ -24,9 +25,9 @@ def test_version(dali_serial):
                     logger.debug(f"found Version information {major}.{minor}.{bugfix}")
                 except ValueError:
                     continue
-    assert major == 2
+    assert major == 3
     assert minor == 0
-    assert bugfix >= 1
+    assert bugfix >= 0
 
 
 @pytest.mark.parametrize(
@@ -72,6 +73,7 @@ def test_queue_overflow(dali_serial):
     queue_size = 5
     for i in range(queue_size + 2):
         dali_serial.port.write(test_cmd.encode("utf-8"))
+        time.sleep(time_for_command_processing)
     for i in range(queue_size + 2):
         dali_serial.get_next(timeout_time_sec)
         if dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK:
