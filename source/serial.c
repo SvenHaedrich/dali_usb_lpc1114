@@ -231,11 +231,12 @@ void UART_IRQHandler(void)
     static char* active_buffer = rx_buffer_1;
     static uint8_t buffer_index;
 
-    uint8_t IIR_value = LPC_UART->IIR;
-    uint8_t IIR_initd = (IIR_value >> 1) & 7;
+    const uint8_t IIR_value = LPC_UART->IIR;
+    const uint8_t IIR_initd = (IIR_value >> 1) & 7;
 
     if (IIR_initd == 2) {
         BaseType_t higher_priority_woken = pdFALSE;
+        while (LPC_UART->LSR & 1) {
         const char c = LPC_UART->RBR;
         switch (c) {
         case SERIAL_CMD_SEND:
@@ -269,6 +270,7 @@ void UART_IRQHandler(void)
         }
         if (buffer_index < (SERIAL_BUFFER_SIZE - 1))
             buffer_index++;
+        }
         portYIELD_FROM_ISR(higher_priority_woken);
     }
 }
