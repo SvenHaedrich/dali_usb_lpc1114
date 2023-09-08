@@ -1,4 +1,4 @@
-DOutput messages use the following format (except for the firmware information message) 
+Output messages use the following format (except for the firmware information message) 
 
     '{' <timestamp> (':'|'>') <length> ' ' <data> '}'
 
