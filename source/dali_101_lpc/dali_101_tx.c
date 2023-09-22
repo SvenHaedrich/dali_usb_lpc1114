@@ -33,7 +33,7 @@ struct _tx {
 } tx;
 
 extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
-extern void rx_schedule_frame(bool is_backframe);
+extern void rx_schedule_transmission(bool is_backframe);
 extern void rx_schedule_query(void);
 
 void tx_reset(void)
@@ -166,7 +166,7 @@ void dali_101_send(const struct dali_tx_frame frame)
     tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
     tx.repeat = frame.repeat;
     tx.is_query = frame.is_query;
-    rx_schedule_frame(frame.priority == DALI_BACKWARD_FRAME);
+    rx_schedule_transmission(frame.priority == DALI_BACKWARD_FRAME);
     return;
 }
 
