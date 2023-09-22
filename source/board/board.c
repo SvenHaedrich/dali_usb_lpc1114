@@ -70,8 +70,8 @@ static void board_setup_uart_clock(void)
     // enable pins first!
     LPC_IOCON->PIO1_6 |= 0x01U;
     LPC_IOCON->PIO1_7 |= 0x01U;
-    // set uart clock to 12 MHz
-    LPC_SYSCON->UARTCLKDIV = 0x04U;
+    // set uart clock to 48 MHz
+    LPC_SYSCON->UARTCLKDIV = 0x01U;
     LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_UART;
 }
 

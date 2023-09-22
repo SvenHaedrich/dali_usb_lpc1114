@@ -6,9 +6,9 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="session")
-def dali_serial(portname="/dev/ttyUSB0", baudrate=115200):
+def dali_serial(portname="/dev/ttyUSB0"):
     logger.debug(f"open serial port {portname}")
-    dali_serial = DaliSerial(portname=portname, baudrate=baudrate)
+    dali_serial = DaliSerial(portname=portname)
     yield dali_serial
     logger.debug(f"close serial port {portname}")
     dali_serial.close()

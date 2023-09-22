@@ -35,6 +35,21 @@
 #define SERIAL_QUEUE_LENGTH (5U)
 #define SERIAL_NOTIFY_PROCESSS (1U)
 
+#define SERIAL_BAUDRATE_500000
+
+#ifdef SERIAL_BAUDRATE_115200
+#define SERIAL_DIVADD (2U)
+#define SERIAL_MUL (15U)
+#define SERIAL_DLM (0U)
+#define SERIAL_DLL (23U)
+#endif
+#ifdef SERIAL_BAUDRATE_500000
+#define SERIAL_DIVADD (1U)
+#define SERIAL_MUL (2U)
+#define SERIAL_DLM (0U)
+#define SERIAL_DLL (4U)
+#endif
+
 struct _serial {
     char* cmd_buffer;
     TaskHandle_t task_handle;
@@ -75,7 +90,7 @@ static void print_queue_full_error(void)
 
 static void queue_frame(const struct dali_tx_frame frame)
 {
-    if (xQueueSendToBack(serial.queue_handle, &frame, 0) != pdPASS) {
+    if (xQueueSendToBack(serial.queue_handle, &frame, 0) == errQUEUE_FULL) {
         print_queue_full_error();
     }
 }
@@ -231,44 +246,46 @@ void UART_IRQHandler(void)
     static char* active_buffer = rx_buffer_1;
     static uint8_t buffer_index;
 
-    uint8_t IIR_value = LPC_UART->IIR;
-    uint8_t IIR_initd = (IIR_value >> 1) & 7;
+    const uint8_t IIR_value = LPC_UART->IIR;
+    const uint8_t IIR_initd = (IIR_value >> 1) & 7;
 
     if (IIR_initd == 2) {
         BaseType_t higher_priority_woken = pdFALSE;
-        const char c = LPC_UART->RBR;
-        switch (c) {
-        case SERIAL_CMD_SEND:
-        case SERIAL_CMD_QUERY:
-        case SERIAL_CMD_REPEAT:
-        case SERIAL_CMD_NEXT_SEQ:
-        case SERIAL_CMD_START_SEQ:
-        case SERIAL_CMD_BACKFRAME:
-        case SERIAL_CMD_EXECUTE_SEQ:
-            buffer_index = 0;
-            active_buffer[0] = c;
-            break;
-        case SERIAL_CMD_STATUS:
-        case SERIAL_CMD_HELP:
-            active_buffer[0] = c;
-            active_buffer[1] = '\000';
-            serial.cmd_buffer = active_buffer;
-            xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
-            active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
-            buffer_index = 0;
-            break;
-        case SERIAL_CHAR_EOL:
-            active_buffer[buffer_index] = '\000';
-            serial.cmd_buffer = active_buffer;
-            xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
-            active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
-            buffer_index = 0;
-            break;
-        default:
-            active_buffer[buffer_index] = c;
+        while (LPC_UART->LSR & 1) {
+            const char c = LPC_UART->RBR;
+            switch (c) {
+            case SERIAL_CMD_SEND:
+            case SERIAL_CMD_QUERY:
+            case SERIAL_CMD_REPEAT:
+            case SERIAL_CMD_NEXT_SEQ:
+            case SERIAL_CMD_START_SEQ:
+            case SERIAL_CMD_BACKFRAME:
+            case SERIAL_CMD_EXECUTE_SEQ:
+                buffer_index = 0;
+                active_buffer[0] = c;
+                break;
+            case SERIAL_CMD_STATUS:
+            case SERIAL_CMD_HELP:
+                active_buffer[0] = c;
+                active_buffer[1] = '\000';
+                serial.cmd_buffer = active_buffer;
+                xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
+                active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
+                buffer_index = 0;
+                break;
+            case SERIAL_CHAR_EOL:
+                active_buffer[buffer_index] = '\000';
+                serial.cmd_buffer = active_buffer;
+                xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
+                active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
+                buffer_index = 0;
+                break;
+            default:
+                active_buffer[buffer_index] = c;
+            }
+            if (buffer_index < (SERIAL_BUFFER_SIZE - 1))
+                buffer_index++;
         }
-        if (buffer_index < (SERIAL_BUFFER_SIZE - 1))
-            buffer_index++;
         portYIELD_FROM_ISR(higher_priority_woken);
     }
 }
@@ -288,18 +305,12 @@ static void serial_initialize_uart_interrupt(void)
 
 static void serial_uart_init(void)
 {
-    // see sample 13.5.15.1.2 from user manual
-    // uart clock = 12 MHz
-    // desired baudrate = 115200
-    // DIVADDVAL = 5
-    // MULVAL = 8
-    // DLM = 0
-    // DLL = 4
+    // doc/hardware for details
     LPC_UART->LCR |= U0LCR_DLAB;
-    LPC_UART->DLM = 0;
-    LPC_UART->DLL = 4;
+    LPC_UART->DLM = SERIAL_DLM;
+    LPC_UART->DLL = SERIAL_DLL;
     LPC_UART->LCR &= ~U0LCR_DLAB;
-    LPC_UART->FDR = (8 << 4) | (5);
+    LPC_UART->FDR = (SERIAL_MUL << 4) | SERIAL_DIVADD;
 
     LPC_UART->LCR = (3 << U0LCR_WLS_SHIFT) & U0LCR_WLS_MASK;
     LPC_UART->FCR = U0FCR_FIFOEN;

@@ -1,3 +1,10 @@
+## Serial Parameters
+
+Baudrate: 500,000 Baud
+Data bits: 8
+Start bit: 1
+Stop bit: 1
+
 ## Query `Q`
 
 Send a DALI forward frame and report the systems reaction. A backframe message is allways generated. The command syntax is
