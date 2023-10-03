@@ -33,6 +33,8 @@ class DaliInterface:
             self.thread = threading.Thread(target=self.read_worker_thread, args=())
             self.thread.daemon = True
             self.thread.start()
+            while not self.queue.empty():
+                self.queue.get()
 
     def get_next(self, timeout=None):
         logger.debug("get next")
@@ -41,6 +43,7 @@ class DaliInterface:
         try:
             self.rx_frame = self.queue.get(block=True, timeout=timeout)
         except queue.Empty:
+            logger.debug("queue is empty, timout occured.")
             self.rx_frame = DaliFrame(status=DaliStatus(status=DaliStatus.TIMEOUT))
             return
         if self.rx_frame is None:
