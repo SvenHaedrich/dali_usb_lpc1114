@@ -1,17 +1,18 @@
 import errno
 import logging
-import queue
 import struct
-import threading
 import time
+
 import usb
-from .status import DaliStatus
+
+from .dali_interface import DaliInterface
 from .frame import DaliFrame
+from .status import DaliStatus
 
 logger = logging.getLogger(__name__)
 
 
-class DaliUsb:
+class DaliUsb(DaliInterface):
     _USB_VENDOR = 0x17B5
     _USB_PRODUCT = 0x0020
 
@@ -19,14 +20,14 @@ class DaliUsb:
     _USB_CMD_BOOTLOADER = 0x02
     _USB_CMD_SEND = 0x12
     _USB_CMD_SEND_ANSWER = 0x15
-    _USB_CMD_SET_IOPINS = 0x20
-    _USB_CMD_READ_IOPINS = 0x21
+    _USB_CMD_SET_IO_PINS = 0x20
+    _USB_CMD_READ_IO_PINS = 0x21
     _USB_CMD_IDENTIFY = 0x22
     _USB_CMD_POWER = 0x40
 
     _USB_CTRL_DAPC = 0x04
-    _USB_CTRL_DEVTYPE = 0x80
-    _USB_CTRL_SETDTR = 0x10
+    _USB_CTRL_DEV_TYPE = 0x80
+    _USB_CTRL_SET_DTR = 0x10
     _USB_CTRL_TWICE = 0x20
     _USB_CTRL_ID = 0x40
 
@@ -41,7 +42,7 @@ class DaliUsb:
 
     _USB_READ_MODE_INFO = 0x01
     _USB_READ_MODE_OBSERVE = 0x11
-    _USB_READ_MODE_REPSONSE = 0x12
+    _USB_READ_MODE_RESPONSE = 0x12
 
     _USB_READ_TYPE_NO_FRAME = 0x71
     _USB_READ_TYPE_8BIT = 0x72
@@ -60,19 +61,14 @@ class DaliUsb:
     _USB_STATUS_DALI = 0x06
 
     def __init__(self, vendor=_USB_VENDOR, product=_USB_PRODUCT):
+        super().__init__()
         # lookup devices by _USB_VENDOR and _USB_PRODUCT
         self.interface = 0
-        self.queue = queue.Queue(maxsize=40)
-        self.keep_running = False
         self.send_sequence_number = 1
         self.receive_sequence_number = None
-        self.rx_frame = None
 
         logger.debug("try to discover DALI interfaces")
-        devices = [
-            dev
-            for dev in usb.core.find(find_all=True, idVendor=vendor, idProduct=product)
-        ]
+        devices = [dev for dev in usb.core.find(find_all=True, idVendor=vendor, idProduct=product)]  # type: ignore
 
         # if not found
         if devices:
@@ -80,47 +76,54 @@ class DaliUsb:
         else:
             raise usb.core.USBError("DALI interface not found")
 
-        # use first device from list
-        self.device = devices[0]
-        self.device.reset()
+        # use first useable device on list
+        i = 0
+        while devices[i]:
+            self.device = devices[i]
+            i = i + 1
+            self.device.reset()
 
-        # detach kernel driver if necessary
-        if self.device.is_kernel_driver_active(self.interface) is True:
-            self.device.detach_kernel_driver(self.interface)
+            # detach kernel driver if necessary
+            if self.device.is_kernel_driver_active(self.interface) is True:
+                self.device.detach_kernel_driver(self.interface)
 
-        self.device.set_configuration()
-        usb.util.claim_interface(self.device, self.interface)
-        cfg = self.device.get_active_configuration()
-        intf = cfg[(0, 0)]
+            self.device.set_configuration()
+            usb.util.claim_interface(self.device, self.interface)
+            cfg = self.device.get_active_configuration()
+            interface = cfg[(0, 0)]  # type: ignore
 
-        # get read and write endpoints
-        self.ep_write = usb.util.find_descriptor(
-            intf,
-            custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress)
-            == usb.util.ENDPOINT_OUT,
-        )
-        self.ep_read = usb.util.find_descriptor(
-            intf,
-            custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress)
-            == usb.util.ENDPOINT_IN,
-        )
-        if not self.ep_read or not self.ep_write:
-            raise usb.core.USBError(
-                f"could not determine read or write endpoint on {self.device}"
+            # get read and write endpoints
+            self.ep_write = usb.util.find_descriptor(
+                interface,
+                custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_OUT,
             )
+            self.ep_read = usb.util.find_descriptor(
+                interface,
+                custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_IN,
+            )
+            if not self.ep_read or not self.ep_write:
+                logger.info(f"could not determine read or write endpoint on {self.device}")
+                continue
 
-        # read pending messages and discard
-        try:
-            while True:
-                self.ep_read.read(self.ep_read.wMaxPacketSize, timeout=10)
-                logger.info("DALI interface - disregard pending messages")
-        except Exception:
-            pass
+            # read pending messages and discard
+            try:
+                while True:
+                    self.ep_read.read(self.ep_read.wMaxPacketSize, timeout=10)  # type: ignore
+                    logger.info("DALI interface - disregard pending messages")
+            except Exception:
+                pass  # nosec B110
+
+            return
+        # cleanup
+        self.device = None
+        self.ep_read = None
+        self.ep_write = None
+        raise usb.core.USBError("No suitable USB device found!")
 
     def read_raw(self, timeout=None):
-        return self.ep_read.read(self.ep_read.wMaxPacketSize, timeout=timeout)
+        return self.ep_read.read(self.ep_read.wMaxPacketSize, timeout=timeout)  # type: ignore
 
-    def transmit(self, frame: DaliFrame, block: bool = False):
+    def transmit(self, frame: DaliFrame, block: bool = False, is_query: bool = False):
         command = self._USB_CMD_SEND
         self.send_sequence_number = (self.send_sequence_number + 1) & 0xFF
         sequence = self.send_sequence_number
@@ -140,10 +143,9 @@ class DaliUsb:
             address_byte = 0x00
             opcode_byte = frame.data & 0xFF
             write_type = self._USB_WRITE_TYPE_8BIT
+            logger.debug(f"time is now: {time.time()}")
         else:
-            raise Exception(
-                f"DALI commands must be 8,16 or 24 bit long. This is {frame.length} bit long"
-            )
+            raise Exception(f"DALI commands must be 8,16 or 24 bit long. This is {frame.length} bit long")
 
         logger.debug(
             f"DALI>OUT: CMD=0x{command:02X} SEQ=0x{sequence:02X} TYC=0x{write_type:02X} "
@@ -159,7 +161,7 @@ class DaliUsb:
             address_byte,
             opcode_byte,
         )
-        result = self.ep_write.write(buffer)
+        result = self.ep_write.write(buffer)  # type: ignore
         self.last_transmit = frame.data
 
         if block:
@@ -172,102 +174,56 @@ class DaliUsb:
         return result
 
     def close(self):
-        logger.debug("close connection")
-        if not self.keep_running:
-            logger.error("read thread is not running")
-        self.keep_running = False
-        while self.thread.is_alive():
-            time.sleep(0.001)
+        super().close()
         usb.util.dispose_resources(self.device)
 
-    def read_worker_thread(self):
-        logger.debug("read_worker_thread started")
-        while self.keep_running:
-            try:
-                usb_data = self.read_raw(timeout=100)
-                if usb_data:
-                    read_type = usb_data[1]
-                    receive_sequence_number = usb_data[8]
-                    logger.debug(
-                        f"DALI[IN]: SN=0x{usb_data[8]:02X} TY=0x{usb_data[1]:02X} "
-                        f"EC=0x{usb_data[3]:02X} AD=0x{usb_data[4]:02X} OC=0x{usb_data[5]:02X}"
-                    )
-                    if read_type == self._USB_READ_TYPE_8BIT:
-                        status = DaliStatus(status=DaliStatus.FRAME)
-                        length = 8
-                        dali_data = usb_data[5]
-                    elif read_type == self._USB_READ_TYPE_16BIT:
-                        status = DaliStatus(status=DaliStatus.FRAME)
-                        length = 16
-                        dali_data = usb_data[5] + (usb_data[4] << 8)
-                    elif read_type == self._USB_READ_TYPE_24BIT:
-                        status = DaliStatus(status=DaliStatus.FRAME)
-                        length = 24
-                        dali_data = (
-                            usb_data[5] + (usb_data[4] << 8) + (usb_data[3] << 16)
-                        )
-                    elif read_type == self._USB_READ_TYPE_NO_FRAME:
-                        status = DaliStatus(status=DaliStatus.TIMEOUT)
-                        length = 0
-                        dali_data = 0
-                    elif read_type == self._USB_READ_TYPE_INFO:
-                        length = 0
-                        dali_data = 0
-                        if usb_data[5] == self._USB_STATUS_OK:
-                            status = DaliStatus(status=DaliStatus.OK)
-                        elif usb_data[5] == self._USB_STATUS_FRAME_ERROR:
-                            status = DaliStatus(status=DaliStatus.TIMING)
-                        else:
-                            status = DaliStatus(status=DaliStatus.GENERAL)
-                    self.queue.put(
-                        DaliFrame(
-                            timestamp=time.time(),
-                            length=length,
-                            data=dali_data,
-                            status=status,
-                        )
-                    )
-
-            except usb.USBError as e:
-                if e.errno not in (errno.ETIMEDOUT, errno.ENODEV):
-                    raise e
-        logger.debug("read_worker_thread terminated")
-
-    def start_receive(self):
-        logger.debug("start receive")
-        self.keep_running = True
-        self.thread = threading.Thread(target=self.read_worker_thread, args=())
-        self.thread.daemon = True
-        self.thread.start()
-
-    def get_next(self, timeout=None):
-        logger.debug("get next")
-        if not self.keep_running:
-            logger.error("read thread is not running")
+    def read_data(self):
         try:
-            self.rx_frame = self.queue.get(block=True, timeout=timeout)
-        except queue.Empty:
-            self.rx_frame = DaliFrame(status=DaliStatus(status=DaliStatus.TIMEOUT))
-            return
-        if self.rx_frame is None:
-            self.rx_frame = DaliFrame(status=DaliStatus(status=DaliStatus.GENERAL))
-            return
+            usb_data = self.read_raw(timeout=100)
+            if usb_data:
+                read_type = usb_data[1]
+                self.receive_sequence_number = usb_data[8]
+                logger.debug(
+                    f"DALI[IN]: SN=0x{usb_data[8]:02X} TY=0x{usb_data[1]:02X} "
+                    f"EC=0x{usb_data[3]:02X} AD=0x{usb_data[4]:02X} OC=0x{usb_data[5]:02X}"
+                )
+                if read_type == self._USB_READ_TYPE_8BIT:
+                    status = DaliStatus(status=DaliStatus.FRAME)
+                    length = 8
+                    dali_data = usb_data[5]
+                    logger.debug(f"backframe at {time.time()}")
+                elif read_type == self._USB_READ_TYPE_16BIT:
+                    status = DaliStatus(status=DaliStatus.FRAME)
+                    length = 16
+                    dali_data = usb_data[5] + (usb_data[4] << 8)
+                elif read_type == self._USB_READ_TYPE_24BIT:
+                    status = DaliStatus(status=DaliStatus.FRAME)
+                    length = 24
+                    dali_data = usb_data[5] + (usb_data[4] << 8) + (usb_data[3] << 16)
+                elif read_type == self._USB_READ_TYPE_NO_FRAME:
+                    status = DaliStatus(status=DaliStatus.TIMEOUT)
+                    length = 0
+                    dali_data = 0
+                elif read_type == self._USB_READ_TYPE_INFO:
+                    length = 0
+                    dali_data = 0
+                    if usb_data[5] == self._USB_STATUS_OK:
+                        status = DaliStatus(status=DaliStatus.OK)
+                    elif usb_data[5] == self._USB_STATUS_FRAME_ERROR:
+                        status = DaliStatus(status=DaliStatus.TIMING)
+                    else:
+                        status = DaliStatus(status=DaliStatus.GENERAL)
+                else:
+                    return
+                self.queue.put(
+                    DaliFrame(
+                        timestamp=time.time(),
+                        length=length,
+                        data=dali_data,
+                        status=status,
+                    )
+                )
 
-    def query_reply(self, frame: DaliFrame):
-        if not self.keep_running:
-            logger.error("read thread is not running")
-        logger.debug("flash queue")
-        while not self.queue.empty():
-            self.queue.get()
-        logger.debug("transmit command")
-        self.transmit(frame)
-        logger.debug("read loopback")
-        self.get_next(timeout=1)
-        if (
-            self.rx_frame.status.status != DaliStatus.FRAME
-            or self.rx_frame.data != frame.data
-            or self.rx_frame.length != frame.length
-        ):
-            return
-        logger.debug("read backframe")
-        self.get_next(timeout=1)
+        except usb.USBError as e:
+            if e.errno not in (errno.ETIMEDOUT, errno.ENODEV):
+                raise e
