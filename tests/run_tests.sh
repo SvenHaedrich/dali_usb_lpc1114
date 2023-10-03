@@ -1,7 +1,7 @@
 #!/bin/bash
 set +x
 echo "--- check virtual environment"
-[-f venv/bin/activate] || pyhton3 -m venv venv
+[ -f venv/bin/activate ] || python3 -m venv venv
 echo "--- activate virtual environemnt"
 source ./venv/bin/activate
 echo "--- update requirements"
