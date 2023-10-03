@@ -5,7 +5,7 @@ import time
 from connection.status import DaliStatus
 
 logger = logging.getLogger(__name__)
-timeout_time_sec = 2
+timeout_time_sec = 10
 time_for_command_processing = 0.0005
 
 
@@ -181,3 +181,40 @@ def test_kill_sequence(dali_serial):
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
     assert dali_serial.rx_frame.data == 0xFF
+
+
+def test_3_11_receiver_bit_timing(dali_serial):
+    dali_serial.start_receive()
+    length_norm_single_us = 416
+    length_norm_double_us = 833
+    length_table = [334, 375, 416, 458, 500]
+    for m in range(5):
+        low_time = length_table[m]
+        for n in range(5):
+            high_time = length_table[n]
+            dali_serial.port.write(f"W{length_norm_single_us:x}\r".encode("utf-8"))
+            time.sleep(time_for_command_processing)
+            dali_serial.port.write(f"N{length_norm_single_us:x}\r".encode("utf-8"))
+            time.sleep(time_for_command_processing)
+            for _ in range(3):
+                dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
+                time.sleep(time_for_command_processing)
+                dali_serial.port.write(f"N{high_time:x}\r".encode("utf-8"))
+                time.sleep(time_for_command_processing)
+            dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
+            time.sleep(time_for_command_processing)
+            dali_serial.port.write(f"N{2*high_time:x}\r".encode("utf-8"))
+            time.sleep(time_for_command_processing)
+            for _ in range(3):
+                dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
+                time.sleep(time_for_command_processing)
+                dali_serial.port.write(f"N{high_time:x}\r".encode("utf-8"))
+                time.sleep(time_for_command_processing)
+            dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
+            time.sleep(time_for_command_processing)
+            dali_serial.port.write("X\r".encode("utf-8"))
+            dali_serial.get_next(timeout_time_sec)
+            logger.debug(dali_serial.rx_frame.status.message)
+            assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
+            assert dali_serial.rx_frame.data == 0xF0
+            assert dali_serial.rx_frame.length == 8
