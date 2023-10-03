@@ -138,6 +138,37 @@ void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
     rx.status = ERROR_IN_FRAME;
 }
 
+static void schedule_settling_time(bool is_backframe)
+{
+    uint32_t min_start_count = tx_get_settling_time();
+    if (is_backframe) {
+        min_start_count += rx.last_full_frame_count;
+    } else {
+        min_start_count += rx.last_edge_count;
+    }
+
+    const uint32_t timer_now = board_dali_rx_get_count();
+    if (timer_now > min_start_count) {
+        dali_tx_start_send();
+        return;
+    }
+    if ((min_start_count - timer_now) < 100)
+        min_start_count += 100;
+    board_dali_rx_set_period_match(min_start_count);
+    board_dali_rx_period_match_enable(true);
+}
+
+static void rx_reset(void)
+{
+    rx.status = IDLE;
+    rx.frame = (struct dali_rx_frame){ 0 };
+
+    if (rx.transmission_is_waiting) {
+        schedule_settling_time(false);
+        rx.transmission_is_waiting = false;
+    }
+}
+
 static void generate_timeout_frame(void)
 {
     if (rx.status == IDLE) {
@@ -147,6 +178,7 @@ static void generate_timeout_frame(void)
         rx.frame.loopback = false;
         rx.frame.data = 0;
         xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+        rx_reset();
     }
 }
 
@@ -208,26 +240,6 @@ static void finish_frame(void)
     }
 }
 
-static void schedule_settling_time(bool is_backframe)
-{
-    uint32_t min_start_count = tx_get_settling_time();
-    if (is_backframe) {
-        min_start_count += rx.last_full_frame_count;
-    } else {
-        min_start_count += rx.last_edge_count;
-    }
-
-    const uint32_t timer_now = board_dali_rx_get_count();
-    if (timer_now > min_start_count) {
-        dali_tx_start_send();
-        return;
-    }
-    if ((min_start_count - timer_now) < 100)
-        min_start_count += 100;
-    board_dali_rx_set_period_match(min_start_count);
-    board_dali_rx_period_match_enable(true);
-}
-
 void rx_schedule_transmission(bool is_backframe)
 {
     if (is_backframe || rx.status == IDLE) {
@@ -253,17 +265,6 @@ static void manage_tx(void)
     if (dali_tx_repeat()) {
         rx_schedule_transmission(false);
         return;
-    }
-}
-
-static void rx_reset(void)
-{
-    rx.status = IDLE;
-    rx.frame = (struct dali_rx_frame){ 0 };
-
-    if (rx.transmission_is_waiting) {
-        schedule_settling_time(false);
-        rx.transmission_is_waiting = false;
     }
 }
 
