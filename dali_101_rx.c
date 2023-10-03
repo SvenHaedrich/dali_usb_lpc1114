@@ -46,12 +46,12 @@ static const struct _rx_timing {
     uint32_t min_failure_condition_us;
     uint32_t max_backward_settling_us;
 } rx_timing = {
-    .min_half_bit_begin_us = 333, // Table 18
-    .max_half_bit_begin_us = (500 + 10),
-    .min_half_bit_inside_us = 333, // Table 19
-    .max_half_bit_inside_us = (500 + 10),
-    .min_full_bit_inside_us = 666,
-    .max_full_bit_inside_us = 1000,
+    .min_half_bit_begin_us = (333 - 12), // Table 18
+    .max_half_bit_begin_us = (500 + 15),
+    .min_half_bit_inside_us = (333 - 12), // Table 19
+    .max_half_bit_inside_us = (500 + 15),
+    .min_full_bit_inside_us = (666 - 12),
+    .max_full_bit_inside_us = (1000 + 15),
     .min_stop_condition_us = 2400,
     .min_failure_condition_us = 500000, // Table 4
     .max_backward_settling_us = 13400,  // Table 20

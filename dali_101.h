@@ -1,6 +1,6 @@
 #pragma once
 #define DALI_101_MAJOR_VERSION (3)
-#define DALI_101_MINOR_VERSION (5)
+#define DALI_101_MINOR_VERSION (6)
 #define DALI_MAX_DATA_LENGTH (32U)
 
 enum dali_tx_priority {
@@ -15,7 +15,7 @@ enum dali_tx_priority {
 };
 
 enum dali_status {
-    DALI_OK = 0x80,
+    DALI_OK = 0x0,
     DALI_TIMEOUT = 0x81,
     DALI_ERROR_RECEIVE_START_TIMING = 0x82,
     DALI_ERROR_RECEIVE_DATA_TIMING = 0x83,
