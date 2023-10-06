@@ -7,6 +7,7 @@ from connection.status import DaliStatus
 logger = logging.getLogger(__name__)
 timeout_time_sec = 10
 time_for_command_processing = 0.0005
+time_loopback_tolerance_us = 5
 
 
 def set_up_and_send_sequence(serial, bit_timings):
@@ -106,16 +107,15 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
     else:
         assert (dali_serial.rx_frame.data & 0xFF) == 0
         time_us = dali_serial.rx_frame.data >> 8
-        assert abs(time_us - length_us) < 12.0
+        assert abs(time_us - length_us) < time_loopback_tolerance_us
 
 
 @pytest.mark.parametrize("length_us", [600000, 800000, 1000000])
 def test_system_failures(dali_serial, length_us):
-    short_time = 0.05
     # set-up sequence
     cmd = f"W{length_us:x}\r"
     dali_serial.port.write(cmd.encode("utf-8"))
-    time.sleep(short_time)
+    time.sleep(time_for_command_processing)
     # here we go
     cmd = "X\r"
     dali_serial.port.write(cmd.encode("utf-8"))
@@ -135,7 +135,7 @@ def test_system_failures(dali_serial, length_us):
     assert dali_serial.rx_frame.status.status == DaliStatus.OK
     recover = dali_serial.rx_frame.timestamp
     time_us = dali_serial.rx_frame.data >> 8
-    assert abs(time_us - length_us) < 12.0
+    assert abs(time_us - length_us) < time_loopback_tolerance_us
     assert abs((recover - failure) - (length_us / 1e6)) < 0.002
     dali_serial.get_next(timeout_time_sec)
 
@@ -176,6 +176,7 @@ def test_kill_sequence(dali_serial):
     dali_serial.port.write("X\r".encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.TIMING
+    time.sleep(0.05)
     # check if interface is still alive
     dali_serial.port.write("YFF\r".encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
