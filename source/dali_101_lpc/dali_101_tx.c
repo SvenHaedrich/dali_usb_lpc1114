@@ -48,6 +48,26 @@ void tx_reset(void)
     tx.state_now = true;
 }
 
+static void add_signal_phase(uint32_t duration_us, bool change_last_phase)
+{
+    if (tx.index_max & 1) {
+        duration_us += (DALI_TX_RISE_US + DALI_TX_FALL_US);
+    } else {
+        duration_us -= (DALI_TX_RISE_US + DALI_TX_FALL_US);
+    }
+    if (change_last_phase) {
+        if (tx.index_max <= 1) {
+            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+            return;
+        }
+        tx.index_max--;
+        tx.count_now = tx.count[tx.index_max - 1] + duration_us;
+    } else {
+        tx.count_now += duration_us;
+    }
+    tx.count[tx.index_max++] = tx.count_now;
+}
+
 static bool add_bit(bool value)
 {
     if (tx.state_now == value) {
@@ -55,20 +75,15 @@ static bool add_bit(bool value)
             generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
-        tx.count_now += dali_timing.half_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
-        tx.count_now += dali_timing.half_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
+        add_signal_phase(dali_timing.half_bit_us, false);
+        add_signal_phase(dali_timing.half_bit_us, false);
     } else {
         if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
             generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
-        tx.index_max--;
-        tx.count_now = tx.count[tx.index_max - 1] + dali_timing.full_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
-        tx.count_now += dali_timing.half_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
+        add_signal_phase(dali_timing.full_bit_us, true);
+        add_signal_phase(dali_timing.half_bit_us, false);
     }
     tx.state_now = value;
     return false;
@@ -81,15 +96,15 @@ static bool add_stop_condition(void)
             generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
+        add_signal_phase(dali_timing.stop_condition_us, true);
         tx.index_max--;
-        tx.count_now = tx.count[tx.index_max - 1] + dali_timing.stop_condition_us;
     } else {
         if (tx.index_max > COUNT_ARRAY_SIZE) {
             generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
-        tx.count_now += dali_timing.stop_condition_us;
-        tx.count[tx.index_max] = tx.count_now;
+        add_signal_phase(dali_timing.stop_condition_us, false);
+        tx.index_max--;
     }
     return false;
 }
@@ -179,8 +194,7 @@ void dali_101_sequence_start(void)
 
 void dali_101_sequence_next(uint32_t period_us)
 {
-    tx.count_now += period_us;
-    tx.count[tx.index_max++] = tx.count_now;
+    add_signal_phase(period_us, false);
     if (tx.index_max > COUNT_ARRAY_SIZE) {
         generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
     }
