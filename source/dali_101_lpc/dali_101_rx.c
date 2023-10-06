@@ -120,7 +120,7 @@ static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
     return true;
 }
 
-void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
+void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
         return;
@@ -218,9 +218,9 @@ static void check_start_timing(void)
         return;
     }
     if (rx.status == START_BIT_START) {
-        generate_error_frame(DALI_ERROR_RECEIVE_START_TIMING, rx.frame.length, time_difference_us);
+        queue_error_frame(DALI_ERROR_RECEIVE_START_TIMING, rx.frame.length, time_difference_us);
     } else {
-        generate_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
+        queue_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
     }
 }
 
@@ -236,7 +236,7 @@ static enum rx_status check_inside_timing(void)
         rx.frame.length++;
         return DATA_BIT_INSIDE;
     }
-    generate_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
+    queue_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
     return ERROR_IN_FRAME;
 }
 
@@ -319,7 +319,7 @@ static void process_capture_notification(void)
                 code = DALI_ERROR_RECEIVE_DATA_TIMING;
             }
             const uint32_t time_difference_us = get_corrected_time_difference_us(false);
-            generate_error_frame(code, rx.frame.length, time_difference_us);
+            queue_error_frame(code, rx.frame.length, time_difference_us);
             manage_tx();
             rx_reset();
         }
@@ -328,7 +328,7 @@ static void process_capture_notification(void)
         if (board_dali_rx_pin() == DALI_RX_IDLE) {
             rx.frame.timestamp = xTaskGetTickCount();
             const uint32_t time_difference_us = get_corrected_time_difference_us(false);
-            generate_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
+            queue_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
             manage_tx();
             rx_reset();
         }
@@ -367,7 +367,7 @@ static void process_match_notification(void)
     }
     switch (rx.status) {
     case LOW:
-        generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
+        queue_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
         rx.status = FAILURE;
         return;
     case FAILURE:

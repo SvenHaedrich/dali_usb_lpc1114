@@ -32,7 +32,7 @@ struct _tx {
     bool is_query;
 } tx;
 
-extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
+extern void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
 extern void rx_schedule_transmission(bool is_backframe);
 extern void rx_schedule_query(void);
 
@@ -57,7 +57,7 @@ static void add_signal_phase(uint32_t duration_us, bool change_last_phase)
     }
     if (change_last_phase) {
         if (tx.index_max <= 1) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return;
         }
         tx.index_max--;
@@ -72,14 +72,14 @@ static bool add_bit(bool value)
 {
     if (tx.state_now == value) {
         if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
         add_signal_phase(dali_timing.half_bit_us, false);
         add_signal_phase(dali_timing.half_bit_us, false);
     } else {
         if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
         add_signal_phase(dali_timing.full_bit_us, true);
@@ -93,14 +93,14 @@ static bool add_stop_condition(void)
 {
     if (tx.state_now) {
         if (!tx.index_max) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
         add_signal_phase(dali_timing.stop_condition_us, true);
         tx.index_max--;
     } else {
         if (tx.index_max > COUNT_ARRAY_SIZE) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
             return true;
         }
         add_signal_phase(dali_timing.stop_condition_us, false);
@@ -112,7 +112,7 @@ static bool add_stop_condition(void)
 static bool calculate_counts(const struct dali_tx_frame frame)
 {
     if (frame.length > DALI_MAX_DATA_LENGTH) {
-        generate_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
+        queue_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
         return true;
     }
 
@@ -196,14 +196,14 @@ void dali_101_sequence_next(uint32_t period_us)
 {
     add_signal_phase(period_us, false);
     if (tx.index_max > COUNT_ARRAY_SIZE) {
-        generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
     }
 }
 
 void dali_101_sequence_execute(void)
 {
     if (tx.index_next >= tx.index_max || tx.index_max == 0) {
-        generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
         return;
     }
     tx.index_max--;
