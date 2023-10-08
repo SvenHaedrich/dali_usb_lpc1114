@@ -22,7 +22,6 @@ static const struct _dali_timing {
 };
 
 struct _tx {
-    uint32_t count_now;
     uint32_t count[COUNT_ARRAY_SIZE];
     uint_fast8_t index_next;
     uint_fast8_t index_max;
@@ -42,10 +41,10 @@ void tx_reset(void)
         board_dali_tx_set(DALI_TX_IDLE);
         board_dali_tx_timer_stop();
     }
-    tx.count_now = 0;
     tx.index_next = 0;
     tx.index_max = 0;
     tx.state_now = true;
+    tx.count[0] = 0;
 }
 
 static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
@@ -54,22 +53,19 @@ static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
         queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
         return true;
     }
+    uint32_t count_now;
     if (tx.index_max & 1) {
-        duration_us += (DALI_TX_RISE_US + DALI_TX_FALL_US);
+        count_now = duration_us + (DALI_TX_RISE_US + DALI_TX_FALL_US);
     } else {
-        duration_us -= (DALI_TX_RISE_US + DALI_TX_FALL_US);
+        count_now = duration_us - (DALI_TX_RISE_US + DALI_TX_FALL_US);
     }
     if (change_last_phase) {
-        if (tx.index_max <= 1) {
-            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-            return true;
-        }
         tx.index_max--;
-        tx.count_now = tx.count[tx.index_max - 1] + duration_us;
-    } else {
-        tx.count_now += duration_us;
     }
-    tx.count[tx.index_max++] = tx.count_now;
+    if (tx.index_max) {
+        count_now += tx.count[tx.index_max - 1];
+    }
+    tx.count[tx.index_max++] = count_now;
     return false;
 }
 
