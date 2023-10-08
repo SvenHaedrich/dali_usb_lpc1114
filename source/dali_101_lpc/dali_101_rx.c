@@ -46,12 +46,12 @@ static const struct _rx_timing {
     uint32_t min_failure_condition_us;
     uint32_t max_backward_settling_us;
 } rx_timing = {
-    .min_half_bit_begin_us = (333 - 12), // Table 18
-    .max_half_bit_begin_us = (500 + 15),
-    .min_half_bit_inside_us = (333 - 12), // Table 19
-    .max_half_bit_inside_us = (500 + 15),
-    .min_full_bit_inside_us = (666 - 12),
-    .max_full_bit_inside_us = (1000 + 15),
+    .min_half_bit_begin_us = (333 - DALI_SAFTEY_MARGIN_US), // Table 18
+    .max_half_bit_begin_us = (500 + DALI_SAFTEY_MARGIN_US),
+    .min_half_bit_inside_us = (333 - DALI_SAFTEY_MARGIN_US), // Table 19
+    .max_half_bit_inside_us = (500 + DALI_SAFTEY_MARGIN_US),
+    .min_full_bit_inside_us = (666 - DALI_SAFTEY_MARGIN_US),
+    .max_full_bit_inside_us = (1000 + DALI_SAFTEY_MARGIN_US),
     .min_stop_condition_us = 2400,
     .min_failure_condition_us = 500000, // Table 4
     .max_backward_settling_us = 13400,  // Table 20
@@ -120,7 +120,7 @@ static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
     return true;
 }
 
-void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
+void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
         return;
@@ -198,9 +198,18 @@ static bool is_valid_fullbit_inside_timing(const uint32_t time_difference_us)
     return true;
 }
 
-static void check_start_timing(void)
+static uint32_t get_corrected_time_difference_us(bool invert)
 {
     const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
+    if (rx.last_data_bit ^ invert) {
+        return time_difference_us + (DALI_RX_FALL_US - DALI_RX_RISE_US);
+    }
+    return time_difference_us - (DALI_RX_FALL_US - DALI_RX_RISE_US);
+}
+
+static void check_start_timing(void)
+{
+    const uint32_t time_difference_us = get_corrected_time_difference_us(false);
     if (is_valid_begin_bit_timing(time_difference_us)) {
         if (rx.status == DATA_BIT_START) {
             rx.frame.data = (rx.frame.data << 1U) | rx.last_data_bit;
@@ -209,15 +218,15 @@ static void check_start_timing(void)
         return;
     }
     if (rx.status == START_BIT_START) {
-        generate_error_frame(DALI_ERROR_RECEIVE_START_TIMING, rx.frame.length, time_difference_us);
+        queue_error_frame(DALI_ERROR_RECEIVE_START_TIMING, rx.frame.length, time_difference_us);
     } else {
-        generate_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
+        queue_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
     }
 }
 
 static enum rx_status check_inside_timing(void)
 {
-    const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
+    uint32_t time_difference_us = get_corrected_time_difference_us(true);
     if (is_valid_halfbit_inside_timing(time_difference_us)) {
         return DATA_BIT_START;
     }
@@ -227,7 +236,7 @@ static enum rx_status check_inside_timing(void)
         rx.frame.length++;
         return DATA_BIT_INSIDE;
     }
-    generate_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
+    queue_error_frame(DALI_ERROR_RECEIVE_DATA_TIMING, rx.frame.length, time_difference_us);
     return ERROR_IN_FRAME;
 }
 
@@ -309,8 +318,8 @@ static void process_capture_notification(void)
             if (rx.frame.length > 1) {
                 code = DALI_ERROR_RECEIVE_DATA_TIMING;
             }
-            const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
-            generate_error_frame(code, rx.frame.length, time_difference_us);
+            const uint32_t time_difference_us = get_corrected_time_difference_us(false);
+            queue_error_frame(code, rx.frame.length, time_difference_us);
             manage_tx();
             rx_reset();
         }
@@ -318,8 +327,8 @@ static void process_capture_notification(void)
     case FAILURE:
         if (board_dali_rx_pin() == DALI_RX_IDLE) {
             rx.frame.timestamp = xTaskGetTickCount();
-            const uint32_t time_difference_us = rx.edge_count - rx.last_edge_count;
-            generate_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
+            const uint32_t time_difference_us = get_corrected_time_difference_us(false);
+            queue_error_frame(DALI_SYSTEM_RECOVER, 0, time_difference_us);
             manage_tx();
             rx_reset();
         }
@@ -358,7 +367,7 @@ static void process_match_notification(void)
     }
     switch (rx.status) {
     case LOW:
-        generate_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
+        queue_error_frame(DALI_SYSTEM_FAILURE, 0, 0);
         rx.status = FAILURE;
         return;
     case FAILURE:
