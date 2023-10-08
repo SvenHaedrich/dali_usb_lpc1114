@@ -22,7 +22,6 @@ static const struct _dali_timing {
 };
 
 struct _tx {
-    uint32_t count_now;
     uint32_t count[COUNT_ARRAY_SIZE];
     uint_fast8_t index_next;
     uint_fast8_t index_max;
@@ -32,7 +31,7 @@ struct _tx {
     bool is_query;
 } tx;
 
-extern void generate_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
+extern void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
 extern void rx_schedule_transmission(bool is_backframe);
 extern void rx_schedule_query(void);
 
@@ -42,33 +41,45 @@ void tx_reset(void)
         board_dali_tx_set(DALI_TX_IDLE);
         board_dali_tx_timer_stop();
     }
-    tx.count_now = 0;
     tx.index_next = 0;
     tx.index_max = 0;
     tx.state_now = true;
+    tx.count[0] = 0;
+}
+
+static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
+{
+    if (tx.index_max >= COUNT_ARRAY_SIZE) {
+        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        return true;
+    }
+    uint32_t count_now;
+    if (tx.index_max & 1) {
+        count_now = duration_us + (DALI_TX_RISE_US + DALI_TX_FALL_US);
+    } else {
+        count_now = duration_us - (DALI_TX_RISE_US + DALI_TX_FALL_US);
+    }
+    if (change_last_phase) {
+        tx.index_max--;
+    }
+    if (tx.index_max) {
+        count_now += tx.count[tx.index_max - 1];
+    }
+    tx.count[tx.index_max++] = count_now;
+    return false;
 }
 
 static bool add_bit(bool value)
 {
     if (tx.state_now == value) {
-        if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.half_bit_us, false) || add_signal_phase(dali_timing.half_bit_us, false)) {
             return true;
         }
-        tx.count_now += dali_timing.half_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
-        tx.count_now += dali_timing.half_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
+
     } else {
-        if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.full_bit_us, true) || add_signal_phase(dali_timing.half_bit_us, false)) {
             return true;
         }
-        tx.index_max--;
-        tx.count_now = tx.count[tx.index_max - 1] + dali_timing.full_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
-        tx.count_now += dali_timing.half_bit_us;
-        tx.count[tx.index_max++] = tx.count_now;
     }
     tx.state_now = value;
     return false;
@@ -77,19 +88,15 @@ static bool add_bit(bool value)
 static bool add_stop_condition(void)
 {
     if (tx.state_now) {
-        if (!tx.index_max) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.stop_condition_us, true)) {
             return true;
         }
         tx.index_max--;
-        tx.count_now = tx.count[tx.index_max - 1] + dali_timing.stop_condition_us;
     } else {
-        if (tx.index_max > COUNT_ARRAY_SIZE) {
-            generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.stop_condition_us, false)) {
             return true;
         }
-        tx.count_now += dali_timing.stop_condition_us;
-        tx.count[tx.index_max] = tx.count_now;
+        tx.index_max--;
     }
     return false;
 }
@@ -97,7 +104,7 @@ static bool add_stop_condition(void)
 static bool calculate_counts(const struct dali_tx_frame frame)
 {
     if (frame.length > DALI_MAX_DATA_LENGTH) {
-        generate_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
+        queue_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
         return true;
     }
 
@@ -179,17 +186,13 @@ void dali_101_sequence_start(void)
 
 void dali_101_sequence_next(uint32_t period_us)
 {
-    tx.count_now += period_us;
-    tx.count[tx.index_max++] = tx.count_now;
-    if (tx.index_max > COUNT_ARRAY_SIZE) {
-        generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-    }
+    add_signal_phase(period_us, false);
 }
 
 void dali_101_sequence_execute(void)
 {
     if (tx.index_next >= tx.index_max || tx.index_max == 0) {
-        generate_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
         return;
     }
     tx.index_max--;
