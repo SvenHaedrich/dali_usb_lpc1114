@@ -56,6 +56,7 @@ def test_input_queue(dali_serial):
     cmd_two = "S1 10 FF02\r"
     dali_serial.start_receive()
     dali_serial.port.write(cmd_one.encode("utf-8"))
+    time.sleep(time_for_command_processing)
     dali_serial.port.write(cmd_two.encode("utf-8"))
     dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
@@ -68,19 +69,21 @@ def test_input_queue(dali_serial):
 
 
 def test_queue_overflow(dali_serial):
+    time.sleep(timeout_time_sec)
     test_cmd = "S1 10 FF0A\r"
     dali_serial.start_receive()
     queue_size = 5
-    for i in range(queue_size + 2):
+    overfill = 5
+    for i in range(queue_size + overfill):
         dali_serial.port.write(test_cmd.encode("utf-8"))
         time.sleep(time_for_command_processing)
-    for i in range(queue_size + 2):
+    for i in range(queue_size + overfill):
         dali_serial.get_next(timeout_time_sec)
         if dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK:
             continue
         break
     assert dali_serial.rx_frame.status.status == DaliStatus.INTERFACE
     # read until no message is left
-    for i in range(queue_size + 2):
+    for i in range(queue_size + overfill):
         dali_serial.get_next(timeout_time_sec)
     assert dali_serial.rx_frame.status.status == DaliStatus.TIMEOUT

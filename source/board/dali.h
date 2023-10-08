@@ -5,6 +5,12 @@
 #define DALI_TX_IDLE false
 #define DALI_TX_ACTIVE true
 
+#define DALI_TX_FALL_US (4)
+#define DALI_TX_RISE_US (20)
+#define DALI_RX_FALL_US (20)
+#define DALI_RX_RISE_US (4)
+#define DALI_SAFTEY_MARGIN_US (5)
+
 enum board_toggle { NOTHING, DISABLE_TOGGLE };
 
 void board_setup_dali_clock(void);
