@@ -34,6 +34,9 @@ Status Codes
  |   A3 | Bad command                      | N/A                       |
  |   A4 | Buffer overflow                  | N/A                       |
 
+NOTE The observed bit timing is shifted by 8 bits to the left, and the lower 8 bits code the data bit where the timing
+error occured.
+
 ```mermaid
 sequenceDiagram
     participant USB
