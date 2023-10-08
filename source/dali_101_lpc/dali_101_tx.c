@@ -48,8 +48,12 @@ void tx_reset(void)
     tx.state_now = true;
 }
 
-static void add_signal_phase(uint32_t duration_us, bool change_last_phase)
+static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
 {
+    if (tx.index_max >= COUNT_ARRAY_SIZE) {
+        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        return true;
+    }
     if (tx.index_max & 1) {
         duration_us += (DALI_TX_RISE_US + DALI_TX_FALL_US);
     } else {
@@ -58,7 +62,7 @@ static void add_signal_phase(uint32_t duration_us, bool change_last_phase)
     if (change_last_phase) {
         if (tx.index_max <= 1) {
             queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-            return;
+            return true;
         }
         tx.index_max--;
         tx.count_now = tx.count[tx.index_max - 1] + duration_us;
@@ -66,24 +70,20 @@ static void add_signal_phase(uint32_t duration_us, bool change_last_phase)
         tx.count_now += duration_us;
     }
     tx.count[tx.index_max++] = tx.count_now;
+    return false;
 }
 
 static bool add_bit(bool value)
 {
     if (tx.state_now == value) {
-        if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
-            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.half_bit_us, false) || add_signal_phase(dali_timing.half_bit_us, false)) {
             return true;
         }
-        add_signal_phase(dali_timing.half_bit_us, false);
-        add_signal_phase(dali_timing.half_bit_us, false);
+
     } else {
-        if (tx.index_max > (COUNT_ARRAY_SIZE - 2)) {
-            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.full_bit_us, true) || add_signal_phase(dali_timing.half_bit_us, false)) {
             return true;
         }
-        add_signal_phase(dali_timing.full_bit_us, true);
-        add_signal_phase(dali_timing.half_bit_us, false);
     }
     tx.state_now = value;
     return false;
@@ -92,18 +92,14 @@ static bool add_bit(bool value)
 static bool add_stop_condition(void)
 {
     if (tx.state_now) {
-        if (!tx.index_max) {
-            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.stop_condition_us, true)) {
             return true;
         }
-        add_signal_phase(dali_timing.stop_condition_us, true);
         tx.index_max--;
     } else {
-        if (tx.index_max > COUNT_ARRAY_SIZE) {
-            queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
+        if (add_signal_phase(dali_timing.stop_condition_us, false)) {
             return true;
         }
-        add_signal_phase(dali_timing.stop_condition_us, false);
         tx.index_max--;
     }
     return false;
@@ -195,9 +191,6 @@ void dali_101_sequence_start(void)
 void dali_101_sequence_next(uint32_t period_us)
 {
     add_signal_phase(period_us, false);
-    if (tx.index_max > COUNT_ARRAY_SIZE) {
-        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-    }
 }
 
 void dali_101_sequence_execute(void)
