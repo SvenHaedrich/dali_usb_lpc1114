@@ -28,3 +28,6 @@
 [submodule "source/dali_101_lpc"]
 	path = source/dali_101_lpc
 	url = git@github.com:SvenHaedrich/dali_101_lpc.git
+[submodule "tests/scripts/dali_interface"]
+	path = tests/scripts/dali_interface
+	url = git@github.com:SvenHaedrich/dali_interface.git
