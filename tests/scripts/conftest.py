@@ -1,6 +1,6 @@
 import pytest
 import logging
-from connection.serial import DaliSerial
+from dali_interface.source.serial import DaliSerial
 
 logger = logging.getLogger(__name__)
 

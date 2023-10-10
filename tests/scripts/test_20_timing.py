@@ -2,7 +2,7 @@ import pytest
 import logging
 import time
 
-from connection.status import DaliStatus
+from dali_interface.source.status import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 10
