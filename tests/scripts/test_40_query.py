@@ -1,8 +1,7 @@
 import pytest
 import logging
 
-from connection.frame import DaliFrame, DaliStatus
-from connection.serial import DaliSerial
+from dali_interface.source.frame import DaliFrame, DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
