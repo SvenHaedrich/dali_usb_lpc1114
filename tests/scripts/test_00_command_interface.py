@@ -1,20 +1,22 @@
 import pytest
 import logging
 import time
-from dali_interface.source.status import DaliStatus
+from dali_interface.dali_interface import DaliStatus
+from dali_interface.serial import DaliSerial
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
 time_for_command_processing = 0.0005
 
 
-def test_version(dali_serial):
+def test_version():
+    serial = DaliSerial("/dev/ttyUSB0", start_receive=False)
     command = "?"
-    dali_serial.port.write(command.encode("utf-8"))
+    serial.port.write(command.encode("utf-8"))
     timeout = time.time() + timeout_time_sec
     while time.time() < timeout:
-        if dali_serial.port.inWaiting() >= 0:
-            line = dali_serial.port.readline()
+        if serial.port.inWaiting() >= 0:
+            line = serial.port.readline()
             logger.debug(f"read line: {line}")
             if line.find(b"Version") == 0:
                 line.decode("utf-8")
@@ -23,11 +25,13 @@ def test_version(dali_serial):
                     minor = line[10] - ord("0")
                     bugfix = line[12] - ord("0")
                     logger.debug(f"found Version information {major}.{minor}.{bugfix}")
+                    break
                 except ValueError:
                     continue
     assert major == 3
     assert minor == 0
-    assert bugfix >= 0
+    assert bugfix >= 4
+    serial.close()
 
 
 @pytest.mark.parametrize(
@@ -44,46 +48,43 @@ def test_version(dali_serial):
     ],
 )
 def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
-    dali_serial.start_receive()
     dali_serial.port.write(command.encode("utf-8"))
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == expected_result
-    assert dali_serial.rx_frame.length == detailed_code
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == expected_result
+    assert result.length == detailed_code
 
 
 def test_input_queue(dali_serial):
     cmd_one = "S1 10 FF01\r"
     cmd_two = "S1 10 FF02\r"
-    dali_serial.start_receive()
     dali_serial.port.write(cmd_one.encode("utf-8"))
     time.sleep(time_for_command_processing)
     dali_serial.port.write(cmd_two.encode("utf-8"))
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    assert dali_serial.rx_frame.length == 0x10
-    assert dali_serial.rx_frame.data == 0xFF01
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    assert dali_serial.rx_frame.length == 0x10
-    assert dali_serial.rx_frame.data == 0xFF02
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 0x10
+    assert result.data == 0xFF01
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 0x10
+    assert result.data == 0xFF02
 
 
 def test_queue_overflow(dali_serial):
     time.sleep(timeout_time_sec)
     test_cmd = "S1 10 FF0A\r"
-    dali_serial.start_receive()
     queue_size = 5
     overfill = 5
     for i in range(queue_size + overfill):
         dali_serial.port.write(test_cmd.encode("utf-8"))
         time.sleep(time_for_command_processing)
     for i in range(queue_size + overfill):
-        dali_serial.get_next(timeout_time_sec)
-        if dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK:
+        result = dali_serial.get(timeout_time_sec)
+        if result.status == DaliStatus.LOOPBACK:
             continue
         break
-    assert dali_serial.rx_frame.status.status == DaliStatus.INTERFACE
+    assert result.status == DaliStatus.INTERFACE
     # read until no message is left
     for i in range(queue_size + overfill):
-        dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.TIMEOUT
+        result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.TIMEOUT
