@@ -1,6 +1,6 @@
 import pytest
 import logging
-from dali_interface.source.status import DaliStatus
+from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
@@ -22,14 +22,13 @@ timeout_time_sec = 2
     ],
 )
 def test_settling_priority(dali_serial, cmd, settling, data):
-    dali_serial.start_receive()
     dali_serial.port.write(cmd.encode("utf-8"))
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    timestamp_1 = dali_serial.rx_frame.timestamp
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    timestamp_2 = dali_serial.rx_frame.timestamp
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    timestamp_1 = result.timestamp
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    timestamp_2 = result.timestamp
     delta = timestamp_2 - timestamp_1
     fullbit_time = 833 / 1000000
     expected_delta = 17 * fullbit_time + (settling / 1000000)
@@ -56,9 +55,8 @@ def test_settling_priority(dali_serial, cmd, settling, data):
 )
 def test_repeat(dali_serial, repeat, data):
     cmd = f"R1 {repeat:x} 10 {data:x}\r"
-    dali_serial.start_receive()
     dali_serial.port.write(cmd.encode("utf-8"))
     for j in range(repeat + 1):
-        dali_serial.get_next(timeout_time_sec)
-        assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-        assert dali_serial.rx_frame.data == data
+        result = dali_serial.get(timeout_time_sec)
+        assert result.status == DaliStatus.LOOPBACK
+        assert result.data == data

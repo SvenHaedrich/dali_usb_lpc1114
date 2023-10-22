@@ -1,21 +1,20 @@
 import pytest
 import logging
 
-from dali_interface.source.status import DaliStatus
+from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
 
 
 def test_data_frames(dali_serial):
-    dali_serial.start_receive()
     for i in range(0, 0x100):
         command = f"Y{i:02x}\r"
         dali_serial.port.write(command.encode("utf-8"))
-        dali_serial.get_next(timeout_time_sec)
-        assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-        assert dali_serial.rx_frame.length == 8
-        assert dali_serial.rx_frame.data == i
+        result = dali_serial.get(timeout_time_sec)
+        assert result.status == DaliStatus.LOOPBACK
+        assert result.length == 8
+        assert result.data == i
 
 
 @pytest.mark.parametrize(
@@ -48,13 +47,12 @@ def test_data_frames(dali_serial):
     ],
 )
 def test_16bit_pattern(dali_serial, code):
-    dali_serial.start_receive()
     command = f"S1 10 {code:04x}\r"
     dali_serial.port.write(command.encode("utf-8"))
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    assert dali_serial.rx_frame.length == 16
-    assert dali_serial.rx_frame.data == code
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 16
+    assert result.data == code
 
 
 @pytest.mark.parametrize(
@@ -106,10 +104,9 @@ def test_16bit_pattern(dali_serial, code):
     ],
 )
 def test_32bit_pattern(dali_serial, code):
-    dali_serial.start_receive()
     command = f"S1 20 {code:08x}\r"
     dali_serial.port.write(command.encode("utf-8"))
-    dali_serial.get_next(timeout_time_sec)
-    assert dali_serial.rx_frame.status.status == DaliStatus.LOOPBACK
-    assert dali_serial.rx_frame.length == 32
-    assert dali_serial.rx_frame.data == code
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 32
+    assert result.data == code
