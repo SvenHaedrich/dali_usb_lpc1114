@@ -23,11 +23,11 @@
 #if !(DALI_101_MAJOR_VERSION == 3U)
 #error "expected DALI 101 major version 3."
 #endif
-#if !(DALI_101_MINOR_VERSION == 7U)
+#if !(DALI_101_MINOR_VERSION == 8U)
 #error "expected DALI 101 minor version 7."
 #endif
 
-#define MAIN_TASK_STACKSIZE (2 * configMINIMAL_STACK_SIZE)
+#define MAIN_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
 #define MAIN_PRIORITY (tskIDLE_PRIORITY + 1)
 
 __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* dummy)
