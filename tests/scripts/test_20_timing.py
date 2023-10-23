@@ -67,7 +67,7 @@ def test_more_legal_timings(dali_serial, index, value):
         (200, DaliStatus.TIMING),
         (250, DaliStatus.TIMING),
         (300, DaliStatus.TIMING),
-        (375, DaliStatus.LOOPBACK),
+        (350, DaliStatus.LOOPBACK),
         (400, DaliStatus.LOOPBACK),
         (450, DaliStatus.LOOPBACK),
         (500, DaliStatus.LOOPBACK),

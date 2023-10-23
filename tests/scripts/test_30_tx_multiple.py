@@ -1,5 +1,6 @@
 import pytest
 import logging
+
 from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
@@ -25,9 +26,11 @@ def test_settling_priority(dali_serial, cmd, settling, data):
     dali_serial.port.write(cmd.encode("utf-8"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
+    assert result.data == data
     timestamp_1 = result.timestamp
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
+    assert result.data == data
     timestamp_2 = result.timestamp
     delta = timestamp_2 - timestamp_1
     fullbit_time = 833 / 1000000
