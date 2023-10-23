@@ -1,6 +1,6 @@
 #pragma once
 #define DALI_101_MAJOR_VERSION (3)
-#define DALI_101_MINOR_VERSION (7)
+#define DALI_101_MINOR_VERSION (8)
 #define DALI_MAX_DATA_LENGTH (32U)
 
 enum dali_tx_priority {
