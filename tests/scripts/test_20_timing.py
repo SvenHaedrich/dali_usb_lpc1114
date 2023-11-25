@@ -7,7 +7,7 @@ from dali_interface.dali_interface import DaliStatus
 logger = logging.getLogger(__name__)
 timeout_time_sec = 10
 time_for_command_processing = 0.0005
-time_loopback_tolerance_us = 5
+time_loopback_tolerance_us = 10
 
 
 def set_up_and_send_sequence(serial, bit_timings):
