@@ -24,7 +24,7 @@
 #error "expected DALI 101 major version 3."
 #endif
 #if !(DALI_101_MINOR_VERSION == 8U)
-#error "expected DALI 101 minor version 7."
+#error "expected DALI 101 minor version 8."
 #endif
 
 #define MAIN_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
