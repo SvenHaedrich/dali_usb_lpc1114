@@ -9,7 +9,7 @@
 #define DALI_TX_RISE_US (20)
 #define DALI_RX_FALL_US (20)
 #define DALI_RX_RISE_US (4)
-#define DALI_SAFTEY_MARGIN_US (5)
+#define DALI_SAFTEY_MARGIN_US (8)
 
 enum board_toggle { NOTHING, DISABLE_TOGGLE };
 
