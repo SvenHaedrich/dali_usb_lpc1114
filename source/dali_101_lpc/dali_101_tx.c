@@ -13,12 +13,10 @@ static const struct _dali_timing {
     uint32_t half_bit_us;
     uint32_t full_bit_us;
     uint32_t stop_condition_us;
-    uint32_t settling_time_us[DALI_PRIORITY_END];
 } dali_timing = {
     .half_bit_us = 417,
     .full_bit_us = 833,
     .stop_condition_us = 2450,
-    .settling_time_us = { 5500, 13500, 14900, 16300, 17900, 19500, 13500 },
 };
 
 struct _tx {
@@ -27,12 +25,11 @@ struct _tx {
     uint_fast8_t index_max;
     bool state_now;
     uint8_t repeat;
-    uint32_t min_settling_time;
     bool is_query;
 } tx;
 
 extern void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
-extern void rx_schedule_transmission(bool is_backframe);
+extern void rx_schedule_transmission(enum dali_tx_priority);
 extern void rx_schedule_query(void);
 
 void tx_reset(void)
@@ -159,28 +156,21 @@ bool dali_tx_repeat(void)
     return false;
 }
 
-uint32_t tx_get_settling_time(void)
-{
-    return tx.min_settling_time;
-}
-
 void dali_101_send(const struct dali_tx_frame frame)
 {
     tx_reset();
     if (calculate_counts(frame)) {
         return;
     }
-    tx.min_settling_time = dali_timing.settling_time_us[frame.priority];
     tx.repeat = frame.repeat;
     tx.is_query = frame.is_query;
-    rx_schedule_transmission(frame.priority == DALI_BACKWARD_FRAME);
+    rx_schedule_transmission(frame.priority);
     return;
 }
 
 void dali_101_sequence_start(void)
 {
     tx_reset();
-    tx.min_settling_time = 0;
     tx.repeat = 0;
 }
 
