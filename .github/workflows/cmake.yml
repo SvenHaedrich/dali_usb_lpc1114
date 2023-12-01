@@ -1,0 +1,33 @@
+name: CMake_cross_compile_for_ARM_M0
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install gcc
+      run: sudo apt install -y gcc-arm-none-eabi    
+    - name: Check gcc version
+      run: gcc --version
+    - name: Check cmake version
+      run: cmake --version
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+    - name: Archive BIN
+      uses: actions/upload-artifact@v2
+      with: 
+        name: bin-binary
+        path: build/dali_usb.bin
+        
