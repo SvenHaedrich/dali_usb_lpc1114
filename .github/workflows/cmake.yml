@@ -29,8 +29,8 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build
     - name: Archive BIN
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with: 
-        name: bin-binary
-        path: build/dali_usb.bin
+        name: build-output
+        path: build/dali_usb.*
         
