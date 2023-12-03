@@ -1,8 +1,9 @@
+Device LPC1114/302 
+SelectInterface SWD
 Log
 Speed 4000
 Connect
 Erase
-LoadFile build/dali_usb.bin 
-VerifyBin
+LoadFile build/dali_usb.bin 0x00000000
 Reset
 Exit
