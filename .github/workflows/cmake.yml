@@ -21,7 +21,7 @@ jobs:
     - name: Install gcc
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '12.2.Rel1'
+        release: '13.2.Rel1'
     - name: Check gcc version
       run: arm-none-eabi-gcc --version
     - name: Check cmake version
