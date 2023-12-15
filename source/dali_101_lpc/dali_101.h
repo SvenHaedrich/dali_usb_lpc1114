@@ -1,6 +1,6 @@
 #pragma once
 #define DALI_101_MAJOR_VERSION (3)
-#define DALI_101_MINOR_VERSION (8)
+#define DALI_101_MINOR_VERSION (9)
 #define DALI_MAX_DATA_LENGTH (32U)
 
 enum dali_tx_priority {
@@ -42,6 +42,7 @@ struct dali_rx_frame {
 
 struct dali_tx_frame {
     bool is_query;
+    bool is_corrupt;
     uint8_t length;
     uint32_t data;
     uint8_t repeat;
