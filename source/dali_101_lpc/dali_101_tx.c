@@ -7,15 +7,19 @@
 #include "dali_101.h"   // self-include for consistency
 
 #define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
+#define EXTEND_CORRUPT_PHASE 2
 
 // see IEC 62386-101-2018 Table 16 - Transmitter bit timing
+// see IEC 62386-101-2022 9.6.2 - Backward frame
 static const struct _dali_timing {
     uint32_t half_bit_us;
     uint32_t full_bit_us;
+    uint32_t corrupt_bit_us;
     uint32_t stop_condition_us;
 } dali_timing = {
     .half_bit_us = 417,
     .full_bit_us = 833,
+    .corrupt_bit_us = 1500,
     .stop_condition_us = 2450,
 };
 
@@ -108,11 +112,29 @@ static bool calculate_counts(const struct dali_tx_frame frame)
     if (add_bit(true)) {
         return true;
     }
-    for (int_fast8_t i = (frame.length - 1); i >= 0; i--) {
-        if (add_bit(frame.data & (1 << i))) {
-            return true;
+
+    if (frame.is_corrupt) {
+        for (int_fast8_t i = 0; i < 16; i++) {
+            if (i == EXTEND_CORRUPT_PHASE) {
+                if (add_signal_phase(dali_timing.corrupt_bit_us, false)) {
+                    return true;
+                }
+            }
+            else {
+                if (add_signal_phase(dali_timing.half_bit_us, false)) {
+                    return true;
+                }
+            }
         }
     }
+    else {
+        for (int_fast8_t i = (frame.length - 1); i >= 0; i--) {
+            if (add_bit(frame.data & (1 << i))) {
+                return true;
+            }
+        }
+    }
+
     return add_stop_condition();
 }
 
