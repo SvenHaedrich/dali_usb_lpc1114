@@ -27,6 +27,7 @@
 #define SERIAL_CMD_START_SEQ 'W'
 #define SERIAL_CMD_NEXT_SEQ 'N'
 #define SERIAL_CMD_EXECUTE_SEQ 'X'
+#define SERIAL_CMD_CORRUPT 'I'
 #define SERIAL_CHAR_TWICE '+'
 #define SERIAL_CHAR_EOL 0x0d
 
@@ -107,6 +108,7 @@ static void query_command(char* argument_buffer)
         return;
     }
     const struct dali_tx_frame frame = { .is_query = true,
+                                         .is_corrupt = false,
                                          .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
                                          .priority = priority,
                                          .length = length,
@@ -126,6 +128,7 @@ static void send_forward_frame_command(char* argument_buffer)
         return;
     }
     const struct dali_tx_frame frame = { .is_query = false,
+                                         .is_corrupt = false,
                                          .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
                                          .priority = priority,
                                          .length = length,
@@ -141,7 +144,23 @@ static void send_backframe_command(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = { .repeat = 0, .priority = DALI_BACKWARD_FRAME, .length = 8, .data = data };
+    const struct dali_tx_frame frame = { .is_query = false,
+                                         .is_corrupt = false,
+                                         .repeat = 0, 
+                                         .priority = DALI_BACKWARD_FRAME, 
+                                         .length = 8, 
+                                         .data = data };
+    queue_frame(frame);
+}
+
+static void send_corrupt_frame_command(void)
+{
+    const struct dali_tx_frame frame = { .is_corrupt = true,
+                                         .is_query = false,
+                                         .repeat = 0,
+                                         .priority = 0,
+                                         .length = 0,
+                                         .data = 0 };
     queue_frame(frame);
 }
 
@@ -202,6 +221,10 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
                 board_flash(LED_SERIAL);
                 send_backframe_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
                 break;
+            case SERIAL_CMD_CORRUPT:
+                board_flash(LED_SERIAL);
+                send_corrupt_frame_command();
+                break;
             case SERIAL_CMD_REPEAT:
                 board_flash(LED_SERIAL);
                 send_repeated_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
@@ -261,6 +284,7 @@ void UART_IRQHandler(void)
             case SERIAL_CMD_START_SEQ:
             case SERIAL_CMD_BACKFRAME:
             case SERIAL_CMD_EXECUTE_SEQ:
+            case SERIAL_CMD_CORRUPT:
                 buffer_index = 0;
                 active_buffer[0] = c;
                 break;

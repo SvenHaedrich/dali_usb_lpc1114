@@ -47,7 +47,7 @@ Send an identical DALI repeated times. Note that sending repeated frames twice i
     EOL        : end of line = 0x0d
 
 - - -
-## Send Backframe `Y`
+## Send Backward Frame `Y`
 
 Send a backframe. The command syntax is
 
@@ -55,14 +55,26 @@ Send a backframe. The command syntax is
 
     'Y'     : command code
     <value> : value to transmit in hex presentation (00..FF)
+    EOL     : end of line = 0x0d
 
+- - -
+## Send Corrupt Backward Frame `I`
+
+Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2. 
+
+    'I'     : command code
+    EOL     : end of line = 0x0d
+
+- - -
 ## Request Status `!`
 
 Request a status frame. No end of line character required.
+
 - - - 
 ## Request Information `?`
 
 Print information about the firmware. No end of line character required.
+
 - - -
 ## Start Sequence `W`
 
@@ -71,8 +83,8 @@ Start the defintion of a sequence.
     'W' <period> EOL
 
     'W'      : command code
-    <period> : time in microseconds, given in hex 
-               representation.
+    <period> : time in microseconds, given in hex representation.
+    EOL      : end of line = 0x0d
 
 - - -
 ## Next Sequence Step `N`
@@ -84,10 +96,16 @@ Continue to define the timing for a sequence.
     'N'      : command code
     <period> : time in microseconds, given in hex 
                representation.
+    EOL      : end of line = 0x0d
+
 - - -
 ## Exexute Sequence `X`
 
-Execute a defined sequence. No end of line character required.
+Execute a defined sequence.
+
+    'X'     : command code
+    EOL     : end of line = 0x0d
+
 - - -
 
 ## Priorities
