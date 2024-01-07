@@ -149,7 +149,7 @@ static uint32_t frame_start_count(enum dali_tx_priority priority)
         return rx.last_full_frame_count + settling_time_us[DALI_BACKWARD_FRAME];
     } else {
         return rx.last_edge_count + settling_time_us[priority];
-    } 
+    }
 }
 
 static void schedule_settling_timeout(enum dali_tx_priority priority)
@@ -270,15 +270,15 @@ void rx_schedule_transmission(enum dali_tx_priority priority)
     if (rx.status == INTER_FRAME_IDLE) {
         const uint32_t timer_now = board_dali_rx_get_count();
         uint32_t scheduled_start = frame_start_count(priority);
-        if (timer_now >=  scheduled_start) {
+        if (timer_now >= scheduled_start) {
             dali_tx_start_send();
             return;
         }
         if (scheduled_start < rx.end_inter_frame_idle) {
             if ((scheduled_start - timer_now) < 100)
-               scheduled_start = timer_now + 100;
+                scheduled_start = timer_now + 100;
             board_dali_rx_set_period_match(scheduled_start);
-            board_dali_rx_period_match_enable(true);            
+            board_dali_rx_period_match_enable(true);
         }
     }
     rx.transmission_is_waiting = true;
@@ -415,7 +415,7 @@ static void process_priority_timeout(void)
     if (rx.transmission_is_waiting) {
         dali_tx_start_send();
         rx.transmission_is_waiting = false;
-    } 
+    }
 }
 
 __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dummy)
@@ -465,16 +465,6 @@ static void dali_rx_init(void)
     } else {
         rx.status = FAILURE;
     }
-}
-
-void dali_101_request_status_frame(void)
-{
-    const struct dali_rx_frame status_frame = { .loopback = false,
-                                                .status = (rx.status == IDLE) ? DALI_OK : DALI_SYSTEM_FAILURE,
-                                                .timestamp = xTaskGetTickCount(),
-                                                .length = 0,
-                                                .data = 0 };
-    xQueueSendToBack(rx.queue_handle, &status_frame, 0);
 }
 
 void dali_101_init(void)
