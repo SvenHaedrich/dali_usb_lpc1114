@@ -1,8 +1,12 @@
 #pragma once
-#define DALI_101_MAJOR_VERSION (3)
-#define DALI_101_MINOR_VERSION (9)
+#define DALI_101_MAJOR_VERSION (3U)
+#define DALI_101_MINOR_VERSION (10U)
 #define DALI_MAX_DATA_LENGTH (32U)
 
+/**
+ * @brief Frame transmission inter-frame priorities
+ *
+ */
 enum dali_tx_priority {
     DALI_BACKWARD_FRAME = 0,
     DALI_PRIORITY_1 = 1,
@@ -10,10 +14,13 @@ enum dali_tx_priority {
     DALI_PRIORITY_3 = 3,
     DALI_PRIORITY_4 = 4,
     DALI_PRIORITY_5 = 5,
-    DALI_PRIORITY_SEND_TWICE = 6,
     DALI_PRIORITY_END = 7,
 };
 
+/**
+ * @brief Status codes for received frames
+ *
+ */
 enum dali_status {
     DALI_OK = 0x0,
     DALI_TIMEOUT = 0x81,
@@ -106,14 +113,6 @@ void dali_101_sequence_next(uint32_t period_us);
  *
  */
 void dali_101_sequence_execute(void);
-
-/**
- * @brief request a status frame
- *
- * Request a status frame, even when there is no bus activity.
- * This is a soon to be obsolete function.
- */
-void dali_101_request_status_frame(void);
 
 /* callback functions defined by the low level driver
  *  to be called by the board interface module
