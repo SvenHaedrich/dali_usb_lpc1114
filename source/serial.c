@@ -22,7 +22,6 @@
 #define SERIAL_CMD_SEND 'S'
 #define SERIAL_CMD_REPEAT 'R'
 #define SERIAL_CMD_BACKFRAME 'Y'
-#define SERIAL_CMD_STATUS '!'
 #define SERIAL_CMD_HELP '?'
 #define SERIAL_CMD_START_SEQ 'W'
 #define SERIAL_CMD_NEXT_SEQ 'N'
@@ -59,7 +58,7 @@ struct _serial {
 
 void serial_print_head(void)
 {
-    printf("DALI USB interface - SevenLab 2023\r\n");
+    printf("DALI USB interface - SevenLab 2024\r\n");
     printf("Version %d.%d.%d \r\n", MAJOR_VERSION_SOFTWARE, MINOR_VERSION_SOFTWARE, BUGFIX_VERSION_SOFTWARE);
     printf("\r\n");
 }
@@ -144,23 +143,17 @@ static void send_backframe_command(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = { .is_query = false,
-                                         .is_corrupt = false,
-                                         .repeat = 0, 
-                                         .priority = DALI_BACKWARD_FRAME, 
-                                         .length = 8, 
-                                         .data = data };
+    const struct dali_tx_frame frame = {
+        .is_query = false, .is_corrupt = false, .repeat = 0, .priority = DALI_BACKWARD_FRAME, .length = 8, .data = data
+    };
     queue_frame(frame);
 }
 
 static void send_corrupt_frame_command(void)
 {
-    const struct dali_tx_frame frame = { .is_corrupt = true,
-                                         .is_query = false,
-                                         .repeat = 0,
-                                         .priority = 0,
-                                         .length = 0,
-                                         .data = 0 };
+    const struct dali_tx_frame frame = {
+        .is_corrupt = true, .is_query = false, .repeat = 0, .priority = 0, .length = 0, .data = 0
+    };
     queue_frame(frame);
 }
 
@@ -229,10 +222,6 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
                 board_flash(LED_SERIAL);
                 send_repeated_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
                 break;
-            case SERIAL_CMD_STATUS:
-                board_flash(LED_SERIAL);
-                dali_101_request_status_frame();
-                break;
             case SERIAL_CMD_HELP:
                 board_flash(LED_SERIAL);
                 serial_print_head();
@@ -288,7 +277,6 @@ void UART_IRQHandler(void)
                 buffer_index = 0;
                 active_buffer[0] = c;
                 break;
-            case SERIAL_CMD_STATUS:
             case SERIAL_CMD_HELP:
                 active_buffer[0] = c;
                 active_buffer[1] = '\000';
