@@ -66,11 +66,6 @@ Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2.
     EOL     : end of line = 0x0d
 
 - - -
-## Request Status `!`
-
-Request a status frame. No end of line character required.
-
-- - - 
 ## Request Information `?`
 
 Print information about the firmware. No end of line character required.
