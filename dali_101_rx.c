@@ -170,7 +170,7 @@ static void rx_reset(void)
 
 static void generate_timeout_frame(void)
 {
-    if (rx.status == IDLE) {
+    if (rx.status == IDLE || rx.status == INTER_FRAME_IDLE) {
         rx.frame.timestamp = xTaskGetTickCount();
         rx.frame.status = DALI_TIMEOUT;
         rx.frame.length = 0;
