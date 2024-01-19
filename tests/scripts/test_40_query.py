@@ -12,6 +12,7 @@ def test_queries(dali_serial) -> None:
     test_frame_1 = DaliFrame(length=16, data=test_cmd_1)
     result = dali_serial.query_reply(test_frame_1)
     assert result.status == DaliStatus.TIMEOUT
+    assert result.message == "TIMEOUT"
     test_cmd_2 = 0xFF02
     test_frame_2 = DaliFrame(length=16, data=test_cmd_2)
     dali_serial.transmit(test_frame_2, block=False)
