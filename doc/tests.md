@@ -2,7 +2,6 @@
 
 Prepare virtual environment, than run the tests.
 ```bash
-python3 -m venv venv
 ./run_tests.sh --log-level=debug
 
 ```
