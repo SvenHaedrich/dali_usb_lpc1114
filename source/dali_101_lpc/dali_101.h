@@ -14,6 +14,7 @@ enum dali_tx_priority {
     DALI_PRIORITY_3 = 3,
     DALI_PRIORITY_4 = 4,
     DALI_PRIORITY_5 = 5,
+    DALI_BACK_TO_BACK = 6,
     DALI_PRIORITY_END = 7,
 };
 
