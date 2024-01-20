@@ -148,7 +148,11 @@ static uint32_t frame_start_count(enum dali_tx_priority priority)
     if (priority == DALI_BACKWARD_FRAME) {
         return rx.last_full_frame_count + settling_time_us[DALI_BACKWARD_FRAME];
     } else {
-        return rx.last_edge_count + settling_time_us[priority];
+        if (priority == DALI_BACK_TO_BACK) {
+            return rx.last_full_frame_count;
+        } else {
+            return rx.last_edge_count + settling_time_us[priority];
+        }
     }
 }
 
