@@ -6,8 +6,8 @@
 #define DALI_RX_GPIO_Port GPIOB
 #define DALI_RX_EXTI_IRQn EXTI4_15_IRQn
 
-#define IRQ_PRIO_HIGH 0
-#define IRQ_PRIO_ELEV 1
+#define IRQ_PRIO_HIGH 1
+#define IRQ_PRIO_ELEV 2
 #define IRQ_PRIO_NORM 3
 
 #define BOARD_MAIN_CLOCK (48000000U)
