@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h> // strtoul
+#include <stdint.h> // uintXX_t
 #include <stdbool.h>
 #include <limits.h> // ULONG_MAX
 
@@ -88,6 +90,26 @@ static void print_queue_full_error(void)
     serial_print_frame(frame);
 }
 
+static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
+{
+    if (length > DALI_MAX_DATA_LENGTH) {
+        return true;
+    }
+    if (priority < DALI_PRIORITY_1) {
+        return true;
+    }
+    if (priority > DALI_BACK_TO_BACK) {
+        return true;
+    }
+    return false;
+}
+
+static bool data_illegal(uint64_t data, uint8_t length)
+{
+    const uint64_t upper_limit = ((uint64_t)1 << length) + 1;
+    return (data >= upper_limit);
+}
+
 static void queue_frame(const struct dali_tx_frame frame)
 {
     if (xQueueSendToBack(serial.queue_handle, &frame, 0) == errQUEUE_FULL) {
@@ -97,12 +119,13 @@ static void queue_frame(const struct dali_tx_frame frame)
 
 static void query_command(char* argument_buffer)
 {
-    int priority;
-    char twice_indicator;
-    unsigned int length;
-    unsigned long data;
-    const int n = sscanf(argument_buffer, "%d %x%c%lx", &priority, &length, &twice_indicator, &data);
-    if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
+    char* end_of_read;
+    const uint8_t priority = strtoul(argument_buffer, &end_of_read, 16);
+    const uint8_t length = strtoul(end_of_read, &end_of_read, 16);
+    const char twice_indicator = *end_of_read++;
+    const uint64_t data = strtoull(end_of_read, &end_of_read, 16);
+
+    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
         print_parameter_error();
         return;
     }
@@ -117,12 +140,13 @@ static void query_command(char* argument_buffer)
 
 static void send_forward_frame_command(char* argument_buffer)
 {
-    int priority;
-    char twice_indicator;
-    unsigned int length;
-    unsigned long data;
-    const int n = sscanf(argument_buffer, "%d %x%c%lx", &priority, &length, &twice_indicator, &data);
-    if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
+    char* end_of_read;
+    const uint8_t priority = strtoul(argument_buffer, &end_of_read, 16);
+    const uint8_t length = strtoul(end_of_read, &end_of_read, 16);
+    const char twice_indicator = *end_of_read++;
+    const uint64_t data = strtoull(end_of_read, &end_of_read, 16);
+
+    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
         print_parameter_error();
         return;
     }
@@ -137,9 +161,10 @@ static void send_forward_frame_command(char* argument_buffer)
 
 static void send_backframe_command(char* argument_buffer)
 {
-    uint32_t data;
-    const int n = sscanf(argument_buffer, "%lx", &data);
-    if (n != 1 || data > 0xFF) {
+    char* end_of_read;
+    const uint64_t data = strtoull(argument_buffer, &end_of_read, 16);
+
+    if (data > 0xFF) {
         print_parameter_error();
         return;
     }
@@ -159,12 +184,12 @@ static void send_corrupt_frame_command(void)
 
 static void send_repeated_command(char* argument_buffer)
 {
-    int priority;
-    unsigned int length;
-    unsigned int repeat;
-    unsigned long data;
-    const int n = sscanf(argument_buffer, "%d %x %x %lx", &priority, &repeat, &length, &data);
-    if (n != 4 || priority < DALI_PRIORITY_1 || priority > DALI_PRIORITY_5 || length > DALI_MAX_DATA_LENGTH) {
+    char* end_of_read;
+    const uint8_t priority = strtoul(argument_buffer, &end_of_read, 16);
+    const uint8_t repeat = strtoul(end_of_read, &end_of_read, 16);
+    const uint8_t length = strtoul(end_of_read, &end_of_read, 16);
+    const uint64_t data = strtoull(end_of_read, &end_of_read, 16);
+    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
         print_parameter_error();
         return;
     }
@@ -174,9 +199,9 @@ static void send_repeated_command(char* argument_buffer)
 
 static void next_sequence(char* argument_buffer)
 {
-    unsigned long period_us;
-    const int n = sscanf(argument_buffer, "%lx", &period_us);
-    if (n != 1) {
+    char* end_of_read;
+    const uint32_t period_us = strtoul(argument_buffer, &end_of_read, 16);
+    if (period_us == 0) {
         print_parameter_error();
         return;
     }
@@ -185,9 +210,9 @@ static void next_sequence(char* argument_buffer)
 
 static void start_sequence(char* argument_buffer)
 {
-    unsigned long period_us;
-    const int n = sscanf(argument_buffer, "%lx", &period_us);
-    if (n != 1) {
+    char* end_of_read;
+    const uint32_t period_us = strtoul(argument_buffer, &end_of_read, 16);
+    if (period_us == 0) {
         print_parameter_error();
         return;
     }
