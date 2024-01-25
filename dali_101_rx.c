@@ -58,7 +58,7 @@ static const struct _rx_timing {
     .max_backward_settling_us = 13400,  // Table 20
 };
 
-static const uint32_t settling_time_us[] = { 5500, 13500, 14900, 16300, 17900, 19500, 13500 };
+static const uint32_t settling_time_us[] = { 5500, 13500, 14900, 16300, 17900, 19500, 2450 };
 
 // module variables
 struct _rx {
@@ -148,11 +148,7 @@ static uint32_t frame_start_count(enum dali_tx_priority priority)
     if (priority == DALI_BACKWARD_FRAME) {
         return rx.last_full_frame_count + settling_time_us[DALI_BACKWARD_FRAME];
     } else {
-        if (priority == DALI_BACK_TO_BACK) {
-            return rx.last_full_frame_count;
-        } else {
-            return rx.last_edge_count + settling_time_us[priority];
-        }
+        return rx.last_edge_count + settling_time_us[priority];
     }
 }
 
