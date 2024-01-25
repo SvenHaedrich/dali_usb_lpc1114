@@ -1,6 +1,6 @@
 #pragma once
 #define DALI_101_MAJOR_VERSION (3U)
-#define DALI_101_MINOR_VERSION (11U)
+#define DALI_101_MINOR_VERSION (12U)
 #define DALI_MAX_DATA_LENGTH (32U)
 
 /**
