@@ -58,7 +58,7 @@ static const struct _rx_timing {
     .max_backward_settling_us = 13400,  // Table 20
 };
 
-static const uint32_t settling_time_us[] = { 5500, 13500, 14900, 16300, 17900, 19500, 13500 };
+static const uint32_t settling_time_us[] = { 5500, 13500, 14900, 16300, 17900, 19500, 2450 };
 
 // module variables
 struct _rx {
