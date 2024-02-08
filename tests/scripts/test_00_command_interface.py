@@ -29,7 +29,7 @@ def test_version():
                 except ValueError:
                     continue
     assert major == 3
-    assert minor == 2
+    assert minor == 3
     assert bugfix >= 0
     serial.close()
 
@@ -41,10 +41,10 @@ def test_version():
         ("Y200\r", DaliStatus.INTERFACE, 0xA3),
         ("S0 10 1000\r", DaliStatus.INTERFACE, 0xA3),
         ("S1 10 A3CD\r", DaliStatus.LOOPBACK, 0x10),
-        ("S6 10 1000\r", DaliStatus.INTERFACE, 0xA3),
         ("S7 10 1000\r", DaliStatus.INTERFACE, 0xA3),
         ("S8 10 1000\r", DaliStatus.INTERFACE, 0xA3),
         ("S9 10 1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("S2 10 11111\r", DaliStatus.INTERFACE, 0xA3),
     ],
 )
 def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
