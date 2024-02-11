@@ -9,7 +9,7 @@ Get compiler
 
     sudo apt-get install gcc-arm-none-eabi
 
-Note: Ubuntu's default `arm-none-eabi-gcc` fails to build a correct binary.
+Note: Ubuntu's default `arm-none-eabi-gcc` (Version 12.2) fails to build a correct binary.
 
 Get cmake
 
