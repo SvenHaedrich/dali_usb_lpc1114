@@ -1,8 +1,3 @@
-#include <stdint.h>
-#include <stdbool.h>
-
-#include "FreeRTOS.h" // TickType_t in dali_101.h
-
 #include "board/dali.h" // interface to hardware abstraction
 #include "dali_101.h"   // self-include for consistency
 
@@ -33,7 +28,7 @@ struct _tx {
 } tx;
 
 extern void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
-extern void rx_schedule_transmission(enum dali_tx_priority);
+extern void rx_schedule_transmission(enum dali_frame_type type);
 extern void rx_schedule_query(void);
 
 void tx_reset(void)
@@ -113,21 +108,19 @@ static bool calculate_counts(const struct dali_tx_frame frame)
         return true;
     }
 
-    if (frame.is_corrupt) {
+    if (frame.type == DALI_FRAME_CORRUPT) {
         for (int_fast8_t i = 0; i < 16; i++) {
             if (i == EXTEND_CORRUPT_PHASE) {
                 if (add_signal_phase(dali_timing.corrupt_bit_us, false)) {
                     return true;
                 }
-            }
-            else {
+            } else {
                 if (add_signal_phase(dali_timing.half_bit_us, false)) {
                     return true;
                 }
             }
         }
-    }
-    else {
+    } else {
         for (int_fast8_t i = (frame.length - 1); i >= 0; i--) {
             if (add_bit(frame.data & (1 << i))) {
                 return true;
@@ -180,13 +173,19 @@ bool dali_tx_repeat(void)
 
 void dali_101_send(const struct dali_tx_frame frame)
 {
+    if (frame.type == DALI_FRAME_NONE) {
+        return;
+    }
     tx_reset();
     if (calculate_counts(frame)) {
         return;
     }
+    if (frame.type == DALI_FRAME_QUERY_1 || frame.type == DALI_FRAME_QUERY_2 || frame.type == DALI_FRAME_QUERY_3 ||
+        frame.type == DALI_FRAME_QUERY_4 || frame.type == DALI_FRAME_QUERY_5) {
+        tx.is_query = true;
+    }
     tx.repeat = frame.repeat;
-    tx.is_query = frame.is_query;
-    rx_schedule_transmission(frame.priority);
+    rx_schedule_transmission(frame.type);
     return;
 }
 
