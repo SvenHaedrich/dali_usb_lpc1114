@@ -29,7 +29,7 @@ def test_version():
                 except ValueError:
                     continue
     assert major == 3
-    assert minor == 3
+    assert minor == 4
     assert bugfix >= 0
     serial.close()
 
