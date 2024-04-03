@@ -1,4 +1,6 @@
 #pragma once
+#include <stdint.h>
+#include <stdbool.h>
 
 #define DALI_RX_IDLE false
 #define DALI_RX_ACTIVE true

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <limits.h> // ULONG_MAX
 
-#include "FreeRTOS.h"
+#include "FreeRTOS.h" // tasks and queues
 #include "task.h"
 #include "queue.h"
 
@@ -95,13 +95,51 @@ static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
     if (length > DALI_MAX_DATA_LENGTH) {
         return true;
     }
-    if (priority < DALI_PRIORITY_1) {
+    if (priority < 1) {
         return true;
     }
-    if (priority > DALI_BACK_TO_BACK) {
+    if (priority > 6) {
         return true;
     }
     return false;
+}
+
+static enum dali_frame_type get_forward_type(uint8_t priority)
+{
+    switch (priority) {
+        case 1:
+            return DALI_FRAME_FORWARD_1;
+        case 2:
+            return DALI_FRAME_FORWARD_2;
+        case 3:
+            return DALI_FRAME_FORWARD_3;
+        case 4:
+            return DALI_FRAME_FORWARD_4;
+        case 5:
+            return DALI_FRAME_FORWARD_5;
+        case 6:
+            return DALI_FRAME_BACK_TO_BACK;
+        default:
+            return DALI_FRAME_NONE;
+    }
+}
+
+static enum dali_frame_type get_query_type(uint8_t priority)
+{
+    switch (priority) {
+        case 1:
+            return DALI_FRAME_QUERY_1;
+        case 2:
+            return DALI_FRAME_QUERY_2;
+        case 3:
+            return DALI_FRAME_QUERY_3;
+        case 4:
+            return DALI_FRAME_QUERY_4;
+        case 5:
+            return DALI_FRAME_QUERY_5;
+        default:
+            return DALI_FRAME_NONE;
+    }
 }
 
 static bool data_illegal(uint64_t data, uint8_t length)
@@ -129,10 +167,8 @@ static void query_command(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = { .is_query = true,
-                                         .is_corrupt = false,
+    const struct dali_tx_frame frame = { .type = get_query_type(priority),
                                          .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
-                                         .priority = priority,
                                          .length = length,
                                          .data = data };
     queue_frame(frame);
@@ -150,10 +186,8 @@ static void send_forward_frame_command(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = { .is_query = false,
-                                         .is_corrupt = false,
+    const struct dali_tx_frame frame = { .type = get_forward_type(priority),
                                          .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
-                                         .priority = priority,
                                          .length = length,
                                          .data = data };
     queue_frame(frame);
@@ -169,7 +203,7 @@ static void send_backframe_command(char* argument_buffer)
         return;
     }
     const struct dali_tx_frame frame = {
-        .is_query = false, .is_corrupt = false, .repeat = 0, .priority = DALI_BACKWARD_FRAME, .length = 8, .data = data
+        .type = DALI_FRAME_BACKWARD, .repeat = 0, .length = 8, .data = data
     };
     queue_frame(frame);
 }
@@ -177,7 +211,7 @@ static void send_backframe_command(char* argument_buffer)
 static void send_corrupt_frame_command(void)
 {
     const struct dali_tx_frame frame = {
-        .is_corrupt = true, .is_query = false, .repeat = 0, .priority = 0, .length = 0, .data = 0
+        .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0
     };
     queue_frame(frame);
 }
@@ -193,7 +227,9 @@ static void send_repeated_command(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = { .repeat = repeat, .priority = priority, .length = length, .data = data };
+    const struct dali_tx_frame frame = {
+        .type = get_forward_type(priority), .repeat = repeat, .length = length, .data = data
+    };
     queue_frame(frame);
 }
 

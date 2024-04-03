@@ -12,8 +12,9 @@ Send a DALI forward frame and report the systems reaction. A backframe message i
     'Q' <priority> ' ' <bits> (' '|'+') <data> EOL
 
     'Q'        : command code
-    <priority> : inter frame timing used 1..5
-    <bits>     : number of data bits to send 0..32d in hex presentation (0..20)
+    <priority> : inter frame timing used 1..5 as defined in IEC 62386-101:2022 Table 22. 
+                 priority = 6 sends a frame immediately after the stop condition 
+    <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     ' ' | '+'  : a plus indicates that the forward frame is send twice
     <data>     : frame data to send in hex presentation
     EOL        : end of line = 0x0d
@@ -26,8 +27,8 @@ Send a DALI forward frame. The command syntax is
     'S' <priority> ' ' <bits> (' '|'+') <data> EOL
 
     'S'        : command code
-    <priority> : inter frame timing used 1..5
-    <bits>     : number of data bits to send 0..32d in hex presentation (0..20)
+    <priority> : inter frame timing used 1..5 as defined in IEC 62386-101:2022 Table 22
+    <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     ' ' | '+'  : a plus indicates that the frame is send twice
     <data>     : frame data to send in hex presentation
     EOL        : end of line = 0x0d
@@ -42,7 +43,7 @@ Send an identical DALI repeated times. Note that sending repeated frames twice i
     'R'        : command code
     <priority> : inter frame timing used 1..5
     <repeat>   : number of repetitions in hex presentation 
-    <bits>     : number of data bits to send 0..32d in hex presentation (0..20)
+    <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     <data>     : frame data to send in hex presentation
     EOL        : end of line = 0x0d
 
@@ -101,14 +102,3 @@ Execute a defined sequence.
     'X'     : command code
     EOL     : end of line = 0x0d
 
-- - -
-
-## Priorities
-
-| Priority | Meaning                   |
-|----------|---------------------------|
-|        1 | Forward frame priority 1  |
-|        2 | Forward frame priority 2  |
-|        3 | Forward frame priority 3  |
-|        4 | Forward frame priority 4  |
-|        5 | Forward frame priority 5  |
