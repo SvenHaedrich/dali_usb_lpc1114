@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #define DALI_101_MAJOR_VERSION (4U)
-#define DALI_101_MINOR_VERSION (0U)
+#define DALI_101_MINOR_VERSION (1U)
 #define DALI_MAX_DATA_LENGTH (32U)
 
 /**
