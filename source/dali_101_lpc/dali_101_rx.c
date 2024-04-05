@@ -270,10 +270,12 @@ static bool is_frame_received_twice(void)
         if (last_frame.data == rx.frame.data) {
             const uint32_t delay = rx.frame.timestamp - last_frame.timestamp;
             if (delay < rx_timing.max_receive_twice_delay_ms) {
+                last_frame = rx.frame;
                 return true;
             }
         }
     }
+    last_frame = rx.frame;
     return false;
 }
 
