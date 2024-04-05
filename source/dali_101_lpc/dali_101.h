@@ -11,7 +11,7 @@
  * IEC 62386-101:2022 Table 22 - Multi-master transmitter settling time values
  */
 enum dali_frame_type {
-    DALI_FRAME_NONE,         /**< no frame to send */
+    DALI_FRAME_NONE = 0,     /**< no frame to send */
     DALI_FRAME_BACKWARD,     /**< send a backward frame*/
     DALI_FRAME_BACK_TO_BACK, /**< send next frame immediately after minimal stop condition*/
     DALI_FRAME_FORWARD_1,    /**< send a forward frame, inter frame priority 1 */
