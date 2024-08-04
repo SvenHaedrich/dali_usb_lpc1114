@@ -43,7 +43,7 @@ calculated baudrate: 500000 Baud
 ### LED Usage
 
 DALI
-Heartbeat LED. When the DALI Bus is idle (high) the blink frequency is faster (approximately 10 Hz).
+Heartbeat LED. When the DALI Bus is idle (high) the blink frequency is faster (approximately 10 Hz). Otherwise a low blink frequency is low (approximately 1 Hz).
 
 Rx
 Inidcates that a serial command was received and processed. The blink duration is a fixed time period and does not correlate with processor activity.
