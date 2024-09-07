@@ -35,9 +35,7 @@ Assuming that `arm-none-eabi-gcc` was installed to `/usr/bin`
 
 ## Gihub Action Build
 
-This https://github.com/carlosperate/arm-none-eabi-gcc-action gihub action is used to
-set up a specific version of the `arm-none-eabi-gcc` compiler toolchain.
-
+The binary is built by a github action for every _push_ and _pull request_.
 
 ## Flashing the Program
 

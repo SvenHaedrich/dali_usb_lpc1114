@@ -12,7 +12,7 @@ Send a DALI forward frame and report the systems reaction. A backframe message i
     'Q' <priority> ' ' <bits> (' '|'+') <data> EOL
 
     'Q'        : command code
-    <priority> : inter frame timing used 1..5 as defined in IEC 62386-101:2022 Table 22. 
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22. 
                  priority = 6 sends a frame immediately after the stop condition 
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     ' ' | '+'  : a plus indicates that the forward frame is send twice
@@ -26,7 +26,7 @@ Send a DALI forward frame.
     'S' <priority> ' ' <bits> (' '|'+') <data> EOL
 
     'S'        : command code
-    <priority> : inter frame timing used 1..5 as defined in IEC 62386-101:2022 Table 22
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     ' ' | '+'  : a plus indicates that the frame is send twice
     <data>     : frame data to send in hex presentation
@@ -39,7 +39,7 @@ Send identical DALI frames repeated times. Note that sending repeated frames twi
     'R' <priority> ' ' <repeat> ' ' <bits> ' ' <data> EOL
 
     'R'        : command code
-    <priority> : inter frame timing used 1..5
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
     <repeat>   : number of repetitions in hex presentation 
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     <data>     : frame data to send in hex presentation
@@ -47,7 +47,7 @@ Send identical DALI frames repeated times. Note that sending repeated frames twi
 
 ## Send Backward Frame `Y`
 
-Send a backframe.
+Send a backward frame.
 
     'Y' <value>
 
