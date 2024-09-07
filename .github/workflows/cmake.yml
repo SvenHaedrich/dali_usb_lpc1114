@@ -20,7 +20,7 @@ jobs:
     - name: Install gcc
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '13.2.Rel1'
+        release: '13.3.Rel1'
     - name: Check gcc version
       run: arm-none-eabi-gcc --version
     - name: Check cmake version
@@ -30,7 +30,7 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build
     - name: Archive BIN
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with: 
         name: build-output
         path: build/dali_usb.*
