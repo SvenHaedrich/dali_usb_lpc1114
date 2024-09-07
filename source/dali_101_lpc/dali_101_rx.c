@@ -8,7 +8,7 @@
 #include "dali_101.h"   // self include for consistency
 
 #define DALI_RX_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
-#define DALI_RX_PRIORITY (tskIDLE_PRIORITY + 3U)
+#define DALI_RX_PRIORITY (tskIDLE_PRIORITY + 4U)
 
 #define NOTIFY_CAPTURE (0x01)
 #define NOTIFY_MATCH (0x02)

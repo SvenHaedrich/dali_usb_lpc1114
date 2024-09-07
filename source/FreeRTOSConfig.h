@@ -217,14 +217,14 @@ extern uint32_t SystemCoreClock;
  * FreeRTOS/source/timers.c source file must be included in the build if
  * configUSE_TIMERS is set to 1.  Default to 0 if left undefined.  See
  * https://www.freertos.org/RTOS-software-timer.html. */
-#define configUSE_TIMERS                1
+#define configUSE_TIMERS                (1)
 
 /* configTIMER_TASK_PRIORITY sets the priority used by the timer task.  Only
  * used if configUSE_TIMERS is set to 1.  The timer task is a standard FreeRTOS
  * task, so its priority is set like any other task.  See
  * https://www.freertos.org/RTOS-software-timer-service-daemon-task.html  Only used
  * if configUSE_TIMERS is set to 1. */
-#define configTIMER_TASK_PRIORITY       (1)
+#define configTIMER_TASK_PRIORITY       (2)
 
 /* configTIMER_TASK_STACK_DEPTH sets the size of the stack allocated to the
  * timer task (in words, not in bytes!).  The timer task is a standard FreeRTOS
@@ -236,7 +236,7 @@ extern uint32_t SystemCoreClock;
  * items the queue can hold) used to send commands to the timer task.  See
  * https://www.freertos.org/RTOS-software-timer-service-daemon-task.html  Only used
  * if configUSE_TIMERS is set to 1. */
-#define configTIMER_QUEUE_LENGTH        10
+#define configTIMER_QUEUE_LENGTH        (10)
 
 /******************************************************************************/
 /* Event Group related definitions. *******************************************/
@@ -269,14 +269,14 @@ extern uint32_t SystemCoreClock;
  * memory in the build.  Set to 0 to exclude the ability to create statically
  * allocated objects from the build.  Defaults to 0 if left undefined.  See
  * https://www.freertos.org/Static_Vs_Dynamic_Memory_Allocation.html. */
-#define configSUPPORT_STATIC_ALLOCATION              1
+#define configSUPPORT_STATIC_ALLOCATION              (1)
 
 /* Set configSUPPORT_DYNAMIC_ALLOCATION to 1 to include FreeRTOS API functions
  * that create FreeRTOS objects (tasks, queues, etc.) using dynamically allocated
  * memory in the build.  Set to 0 to exclude the ability to create dynamically
  * allocated objects from the build.  Defaults to 1 if left undefined.  See
  * https://www.freertos.org/Static_Vs_Dynamic_Memory_Allocation.html. */
-#define configSUPPORT_DYNAMIC_ALLOCATION             0
+#define configSUPPORT_DYNAMIC_ALLOCATION             (0)
 
 /* Sets the total size of the FreeRTOS heap, in bytes, when heap_1.c, heap_2.c
  * or heap_4.c are included in the build.  This value is defaulted to 4096 bytes but
