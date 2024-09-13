@@ -1,8 +1,8 @@
 #include <stdio.h>
-#include <stdlib.h> // strtoul
-#include <stdint.h> // uintXX_t
-#include <stdbool.h>
-#include <limits.h> // ULONG_MAX
+#include <stdlib.h>  // strtoul
+#include <stdint.h>  // uintXX_t
+#include <stdbool.h> // for bool
+#include <limits.h>  // ULONG_MAX
 
 #include "FreeRTOS.h" // tasks and queues
 #include "task.h"
@@ -69,7 +69,7 @@ void serial_print_frame(const struct dali_rx_frame frame)
 {
     const char c = frame.loopback ? '>' : ':';
     const uint8_t length = (frame.status > DALI_OK) ? frame.status : frame.length;
-    printf("{%08lx%c%02x %08lx}\r\n", frame.timestamp, c, length, frame.data);
+    printf("{%08x%c%02x %08x}\r\n", frame.timestamp, c, length, frame.data);
 }
 
 static void print_parameter_error(void)
@@ -107,38 +107,38 @@ static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
 static enum dali_frame_type get_forward_type(uint8_t priority)
 {
     switch (priority) {
-        case 1:
-            return DALI_FRAME_FORWARD_1;
-        case 2:
-            return DALI_FRAME_FORWARD_2;
-        case 3:
-            return DALI_FRAME_FORWARD_3;
-        case 4:
-            return DALI_FRAME_FORWARD_4;
-        case 5:
-            return DALI_FRAME_FORWARD_5;
-        case 6:
-            return DALI_FRAME_BACK_TO_BACK;
-        default:
-            return DALI_FRAME_NONE;
+    case 1:
+        return DALI_FRAME_FORWARD_1;
+    case 2:
+        return DALI_FRAME_FORWARD_2;
+    case 3:
+        return DALI_FRAME_FORWARD_3;
+    case 4:
+        return DALI_FRAME_FORWARD_4;
+    case 5:
+        return DALI_FRAME_FORWARD_5;
+    case 6:
+        return DALI_FRAME_BACK_TO_BACK;
+    default:
+        return DALI_FRAME_NONE;
     }
 }
 
 static enum dali_frame_type get_query_type(uint8_t priority)
 {
     switch (priority) {
-        case 1:
-            return DALI_FRAME_QUERY_1;
-        case 2:
-            return DALI_FRAME_QUERY_2;
-        case 3:
-            return DALI_FRAME_QUERY_3;
-        case 4:
-            return DALI_FRAME_QUERY_4;
-        case 5:
-            return DALI_FRAME_QUERY_5;
-        default:
-            return DALI_FRAME_NONE;
+    case 1:
+        return DALI_FRAME_QUERY_1;
+    case 2:
+        return DALI_FRAME_QUERY_2;
+    case 3:
+        return DALI_FRAME_QUERY_3;
+    case 4:
+        return DALI_FRAME_QUERY_4;
+    case 5:
+        return DALI_FRAME_QUERY_5;
+    default:
+        return DALI_FRAME_NONE;
     }
 }
 
@@ -202,17 +202,13 @@ static void send_backframe_command(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    const struct dali_tx_frame frame = {
-        .type = DALI_FRAME_BACKWARD, .repeat = 0, .length = 8, .data = data
-    };
+    const struct dali_tx_frame frame = { .type = DALI_FRAME_BACKWARD, .repeat = 0, .length = 8, .data = data };
     queue_frame(frame);
 }
 
 static void send_corrupt_frame_command(void)
 {
-    const struct dali_tx_frame frame = {
-        .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0
-    };
+    const struct dali_tx_frame frame = { .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0 };
     queue_frame(frame);
 }
 
