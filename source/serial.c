@@ -2,7 +2,7 @@
 #include <stdlib.h>  // strtoul
 #include <stdint.h>  // uintXX_t
 #include <stdbool.h> // for bool
-#include <limits.h>  // ULONG_MAX
+#include <limits.h>  // UINT_MAX
 
 #include "FreeRTOS.h" // tasks and queues
 #include "task.h"
@@ -256,7 +256,7 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
 {
     while (true) {
         uint32_t notifications;
-        const BaseType_t result = xTaskNotifyWait(pdFALSE, ULONG_MAX, &notifications, portMAX_DELAY);
+        const BaseType_t result = xTaskNotifyWait(pdFALSE, UINT_MAX, &notifications, portMAX_DELAY);
         if (result == pdPASS) {
             switch (serial.cmd_buffer[SERIAL_IDX_CMD]) {
             case SERIAL_CMD_QUERY:
