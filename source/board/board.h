@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>  // for bool
 
 #define DALI_TX_Pin GPIO_PIN_8
 #define DALI_TX_GPIO_Port GPIOA

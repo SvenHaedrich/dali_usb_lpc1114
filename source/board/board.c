@@ -1,15 +1,10 @@
-#include <stdbool.h>
-#include <string.h>
-
-#include "FreeRTOS.h"
-#include "timers.h"
-
-#include "lpc11xx.h"
-#include "bitfields.h"
-#include "dali_101_lpc/dali_101.h" // irq callbacks
-#include "dali.h"
-#include "led.h"
 #include "board.h"
+#include <stdbool.h>    // for bool
+#include <stdint.h>     // for uint32_t
+#include "bitfields.h"  // for PDRUNCFG_SYSPLL_PD, PDRUNCFG_SYSOSC_PD, SYSAH...
+#include "dali.h"       // for board_setup_dali_clock
+#include "led.h"        // for board_led_init
+#include "lpc11xx.h"    // for LPC_SYSCON, LPC_SYSCON_TypeDef, NVIC_EnableIRQ
 
 #define DALI_TIMER_RATE_HZ (1000000U)
 

@@ -1,12 +1,10 @@
-#include <stdbool.h> // board/dali.h
-
-#include "FreeRTOS.h"
-#include "timers.h" // timer stuff
-
-#include "lpc11xx.h"   // registers
-#include "bitfields.h" // registers
-#include "dali.h"      // access to DALI line status
 #include "led.h"
+#include <stddef.h>    // for NULL
+#include <stdint.h>    // for uint8_t, uint_fast8_t, uint32_t
+#include "FreeRTOS.h"  // for StaticTimer_t, configASSERT, pdFALSE, pdPASS
+#include "dali.h"      // for board_dali_rx_pin, DALI_RX_IDLE
+#include "lpc11xx.h"   // for LPC_GPIO2, LPC_GPIO_TypeDef, (anonymous struct...
+#include "timers.h"    // for TimerHandle_t, tmrTimerControl, xTimerCreateSt...
 
 #define HEARTBEAT_PERIOD_MS (100U)
 #define SLOW_HEARTBEAT_COUNTER (10U)

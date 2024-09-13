@@ -1,14 +1,9 @@
-#include <stdbool.h>
-#include <string.h>
-
-#include "FreeRTOS.h"
-#include "timers.h"
-
-#include "lpc11xx.h"
-#include "bitfields.h"
-#include "dali_101_lpc/dali_101.h" // irq callbacks
 #include "dali.h"
-#include "board.h"
+#include <stdbool.h>               // for bool, false
+#include "bitfields.h"             // for TMR32B0MCR_MR3I, IOCON_R_PIO0_11_...
+#include "board.h"                 // for BOARD_AHB_CLOCK
+#include "dali_101_lpc/dali_101.h" // for dali_rx_irq_capture_callback, dal...
+#include "lpc11xx.h"               // for LPC_TMR_TypeDef, LPC_TMR32B1, LPC...
 
 #define DALI_TIMER_RATE_HZ (1000000U)
 

@@ -8,17 +8,15 @@
    DALI USB Adapter
 */
 
-#include <stdbool.h>
-#include <stdlib.h>
-
-#include "FreeRTOS.h"
-#include "task.h"
-
-#include "board/board.h"
-#include "board/led.h"
-#include "version.h"
-#include "dali_101_lpc/dali_101.h"
-#include "serial.h"
+#include <stdbool.h>                // for false, true
+#include <stdlib.h>                 // for NULL
+#include "FreeRTOS.h"               // for configMINIMAL_STACK_SIZE, StaticT...
+#include "board/board.h"            // for board_init
+#include "board/led.h"              // for board_flash, LED_DALI
+#include "dali_101_lpc/dali_101.h"  // for dali_101_get, dali_101_init, dali...
+#include "portmacro.h"              // for StackType_t
+#include "serial.h"                 // for serial_get, serial_init, serial_p...
+#include "task.h"                   // for vTaskStartScheduler, xTaskCreateS...
 
 #if !(DALI_101_MAJOR_VERSION == 4U)
 #error "expected DALI 101 major version 4."

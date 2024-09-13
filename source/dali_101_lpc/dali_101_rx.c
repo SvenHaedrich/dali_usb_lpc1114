@@ -1,11 +1,13 @@
-#include <limits.h> // ULONG_MAX
-
-#include "FreeRTOS.h" // receive task, queue
-#include "task.h"
-#include "queue.h"
-
-#include "board/dali.h" // interface to hardware abstraction
-#include "dali_101.h"   // self include for consistency
+#include <limits.h>      // for ULONG_MAX
+#include <stdbool.h>     // for false, true, bool
+#include <stddef.h>      // for NULL
+#include <stdint.h>      // for uint32_t, uint8_t
+#include "FreeRTOS.h"    // for pdFALSE, pdTICKS_TO_MS, configASSERT, config...
+#include "board/dali.h"  // for board_dali_rx_pin, board_dali_rx_stopbit_mat...
+#include "dali_101.h"    // for dali_rx_frame, dali_101_tx_is_idle, dali_fra...
+#include "portmacro.h"   // for BaseType_t, portYIELD_FROM_ISR, portMAX_DELAY
+#include "queue.h"       // for xQueueReceive, xQueueSendToBack, QueueDefini...
+#include "task.h"        // for xTaskGetTickCount, eSetBits, xTaskNotifyFromISR
 
 #define DALI_RX_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
 #define DALI_RX_PRIORITY (tskIDLE_PRIORITY + 4U)

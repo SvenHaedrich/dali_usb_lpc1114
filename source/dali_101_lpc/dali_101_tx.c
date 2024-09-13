@@ -1,5 +1,7 @@
-#include "board/dali.h" // interface to hardware abstraction
-#include "dali_101.h"   // self-include for consistency
+#include <stdbool.h>     // for true, false, bool
+#include <stdint.h>      // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
+#include "board/dali.h"  // for board_dali_tx_set, board_dali_tx_timer_next
+#include "dali_101.h"    // for dali_tx_frame, DALI_MAX_DATA_LENGTH, DALI_ER...
 
 #define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
 #define EXTEND_CORRUPT_PHASE 2
