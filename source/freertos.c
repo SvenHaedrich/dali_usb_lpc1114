@@ -1,9 +1,9 @@
-#include <stdbool.h>
-#include "FreeRTOS.h"
-#include "task.h"
-
-#include "board/led.h"
-
+#include <stdbool.h>    // for true
+#include <stdint.h>     // for uint16_t
+#include "FreeRTOS.h"   // for vAssertFailed
+#include "board/led.h"  // for board_indicate_error
+#include "portable.h"   // for vApplicationMallocFailedHook
+#include "task.h"       // for TaskHandle_t, tskTaskControlBlock, vApplicationMallocFailedHook
 
 void vApplicationStackOverflowHook(__attribute__((unused)) TaskHandle_t xTask, __attribute__((unused)) char* pcTaskName)
 {
