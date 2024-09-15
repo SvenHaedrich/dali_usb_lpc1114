@@ -45,7 +45,7 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
     }
 }
 
-int main(void)
+__attribute__((noreturn)) int main(void)
 {
     board_init();
     dali_101_init();
