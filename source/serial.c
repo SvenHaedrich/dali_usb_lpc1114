@@ -69,7 +69,7 @@ void serial_print_frame(const struct dali_rx_frame frame)
 {
     const char c = frame.loopback ? '>' : ':';
     const uint8_t length = (frame.status > DALI_OK) ? frame.status : frame.length;
-    printf("{%08x%c%02x %08x}\r\n", frame.timestamp, c, length, frame.data);
+    printf("{%08lx%c%02x %08lx}\r\n", frame.timestamp, c, length, frame.data);
 }
 
 static void print_parameter_error(void)
