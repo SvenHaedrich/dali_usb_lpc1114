@@ -87,7 +87,7 @@ Continue to define the timing for a sequence.
                representation.
     EOL      : end of line = 0x0d
 
-## Exexute Sequence `X`
+## Execute Sequence `X`
 
 Execute a defined sequence.
 
