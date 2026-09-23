@@ -1,8 +1,8 @@
-import time
 import logging
+import time
 
+from dali_interface.dali_interface import DaliFrame, DaliStatus
 from dali_interface.serial import DaliSerial
-from dali_interface.dali_interface import DaliStatus, DaliFrame
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -37,9 +37,7 @@ def dali_exchange(
     if not dali_compare_frame(frame, from_result):
         return False
     to_result = to_adapter.get(5)
-    if not dali_compare_frame(frame, to_result):
-        return False
-    return True
+    return dali_compare_frame(frame, to_result)
 
 
 def dali_interaction() -> bool:

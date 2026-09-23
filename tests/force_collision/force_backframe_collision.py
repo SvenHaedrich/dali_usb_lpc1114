@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import serial
 import time
+
+import serial
 
 
 def send_spaced_backframes(spacing_us):

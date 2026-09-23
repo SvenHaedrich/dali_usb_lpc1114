@@ -1,5 +1,6 @@
-import pytest
 import logging
+
+import pytest
 from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
