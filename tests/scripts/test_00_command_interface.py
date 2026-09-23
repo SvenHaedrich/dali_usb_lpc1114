@@ -1,6 +1,7 @@
-import pytest
 import logging
 import time
+
+import pytest
 from dali_interface.dali_interface import DaliStatus
 from dali_interface.serial import DaliSerial
 

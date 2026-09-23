@@ -1,6 +1,6 @@
-import pytest
 import logging
 
+import pytest
 from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
@@ -8,7 +8,7 @@ timeout_time_sec = 2
 
 
 def test_data_frames(dali_serial):
-    for i in range(0, 0x100):
+    for i in range(0x100):
         command = f"Y{i:02x}\r"
         dali_serial.port.write(command.encode("ascii"))
         result = dali_serial.get(timeout_time_sec)

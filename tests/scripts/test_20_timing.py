@@ -1,7 +1,7 @@
-import pytest
 import logging
 import time
 
+import pytest
 from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
@@ -181,7 +181,6 @@ def test_kill_sequence(dali_serial):
 
 def test_3_11_receiver_bit_timing(dali_serial):
     length_norm_single_us = 416
-    length_norm_double_us = 833
     length_table = [334, 375, 416, 458, 500]
     for m in range(5):
         low_time = length_table[m]
@@ -198,7 +197,7 @@ def test_3_11_receiver_bit_timing(dali_serial):
                 time.sleep(time_for_command_processing)
             dali_serial.port.write(f"N{low_time:x}\r".encode("ascii"))
             time.sleep(time_for_command_processing)
-            dali_serial.port.write(f"N{2*high_time:x}\r".encode("ascii"))
+            dali_serial.port.write(f"N{2 * high_time:x}\r".encode("ascii"))
             time.sleep(time_for_command_processing)
             for _ in range(3):
                 dali_serial.port.write(f"N{low_time:x}\r".encode("ascii"))
