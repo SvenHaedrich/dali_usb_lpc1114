@@ -1,3 +1,4 @@
+// clang-format off
 #include <stdio.h>
 #include <stdlib.h>   // strtoul
 #include <stdint.h>   // uintXX_t
@@ -17,6 +18,7 @@
 #include "board/board.h" // irq priorities
 #include "version.h"
 #include "serial.h"
+// clang-format on
 
 #define SERIAL_BUFFER_SIZE 20
 #define SERIAL_IDX_CMD 0

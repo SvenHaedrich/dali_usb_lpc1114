@@ -8,6 +8,7 @@
    DALI USB Adapter
 */
 
+// clang-format off
 #include <stdbool.h>               // for false, true
 #include <stdlib.h>                // for NULL
 #include "FreeRTOS.h"              // for configMINIMAL_STACK_SIZE, StaticT...
@@ -17,6 +18,7 @@
 #include "portmacro.h"             // for StackType_t
 #include "serial.h"                // for serial_get, serial_init, serial_p...
 #include "task.h"                  // for vTaskStartScheduler, xTaskCreateS...
+// clang-format on
 
 #define MAIN_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
 #define MAIN_PRIORITY (tskIDLE_PRIORITY + 1)

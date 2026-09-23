@@ -1,3 +1,4 @@
+// clang-format off
 #include <limits.h>      // for ULONG_MAX
 #include <stdbool.h>     // for false, true, bool
 #include <stddef.h>      // for NULL
@@ -8,6 +9,7 @@
 #include "portmacro.h"   // for BaseType_t, portYIELD_FROM_ISR, portMAX_DELAY
 #include "queue.h"       // for xQueueReceive, xQueueSendToBack, QueueDefini...
 #include "task.h"        // for xTaskGetTickCount, eSetBits, xTaskNotifyFromISR
+// clang-format on
 
 #define DALI_RX_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
 #define DALI_RX_PRIORITY (tskIDLE_PRIORITY + 4U)
