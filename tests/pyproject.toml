@@ -1,0 +1,28 @@
+# Dependencies and tool settings for the DALI USB test suite.
+#
+# The tests are not a package, so the dependencies live in dependency groups
+# (PEP 735) rather than in a [project] table. Install them with
+#
+#     pip install --group test --group lint
+#
+# which is what run_tests.sh does. This needs pip 25.1 or newer.
+
+[dependency-groups]
+test = [
+    "pyserial",
+    "pytest",
+    "pyusb",
+    "termcolor",
+    "typeguard",
+]
+lint = [
+    "ruff",
+]
+
+[tool.ruff]
+# dali_interface is a submodule and lives in its own repository
+extend-exclude = ["scripts/dali_interface"]
+
+[tool.ruff.lint]
+# the line length is not enforced
+ignore = ["E501"]
