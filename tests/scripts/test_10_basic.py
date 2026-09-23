@@ -10,7 +10,7 @@ timeout_time_sec = 2
 def test_data_frames(dali_serial):
     for i in range(0, 0x100):
         command = f"Y{i:02x}\r"
-        dali_serial.port.write(command.encode("utf-8"))
+        dali_serial.port.write(command.encode("ascii"))
         result = dali_serial.get(timeout_time_sec)
         assert result.status == DaliStatus.LOOPBACK
         assert result.length == 8
@@ -48,7 +48,7 @@ def test_data_frames(dali_serial):
 )
 def test_16bit_pattern(dali_serial, code):
     command = f"S1 10 {code:04x}\r"
-    dali_serial.port.write(command.encode("utf-8"))
+    dali_serial.port.write(command.encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     assert result.length == 16
@@ -105,7 +105,7 @@ def test_16bit_pattern(dali_serial, code):
 )
 def test_32bit_pattern(dali_serial, code):
     command = f"S1 20 {code:08x}\r"
-    dali_serial.port.write(command.encode("utf-8"))
+    dali_serial.port.write(command.encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     assert result.length == 32
