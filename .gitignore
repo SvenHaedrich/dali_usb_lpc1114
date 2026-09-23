@@ -1,7 +1,7 @@
 .idea/
 .vscode/
 build/
-venv/
+.venv/
 __pycache__
 .pytest_cache
 ozone*
