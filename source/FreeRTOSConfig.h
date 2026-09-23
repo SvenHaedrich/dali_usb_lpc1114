@@ -1,3 +1,5 @@
+// clang-format off
+// the column alignment of this vendor template is deliberate
 /*
  * FreeRTOS Kernel V11.1.0
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
