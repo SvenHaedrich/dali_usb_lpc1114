@@ -22,7 +22,7 @@ timeout_time_sec = 2
     ],
 )
 def test_settling_priority(dali_serial, cmd, settling, data):
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     timestamp_1 = result.timestamp
@@ -55,7 +55,7 @@ def test_settling_priority(dali_serial, cmd, settling, data):
 )
 def test_repeat(dali_serial, repeat, data):
     cmd = f"R1 {repeat:x} 10 {data:x}\r"
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     for j in range(repeat + 1):
         result = dali_serial.get(timeout_time_sec)
         assert result.status == DaliStatus.LOOPBACK
