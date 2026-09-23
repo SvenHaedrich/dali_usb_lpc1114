@@ -1,30 +1,12 @@
-[submodule "thirdparty/cmsis_device_f0"]
-	path = thirdparty/cmsis_device_f0
-	url = git@github.com:STMicroelectronics/cmsis_device_f0.git
-[submodule "thirdparty/cmsis_core"]
-	path = thirdparty/cmsis_core
-	url = git@github.com:STMicroelectronics/cmsis_core.git
-[submodule "thirdparty/stm32f0xx_hal_driver"]
-	path = thirdparty/stm32f0xx_hal_driver
-	url = git@github.com:STMicroelectronics/stm32f0xx_hal_driver.git
 [submodule "thirdparty/FreeRTOS-Kernel"]
 	path = thirdparty/FreeRTOS-Kernel
 	url = git@github.com:FreeRTOS/FreeRTOS-Kernel.git
-[submodule "thirdparty/cmsis"]
-	path = thirdparty/cmsis
-	url = git@github.com:scottt/cmsis-core-lpc111x.git
 [submodule "thirdparty/cmsis-core"]
 	path = thirdparty/cmsis-core
 	url = git@github.com:ARMmbed/cmsis-core.git
 [submodule "thirdparty/cmsis-core-lpc111x"]
 	path = thirdparty/cmsis-core-lpc111x
 	url = git@github.com:scottt/cmsis-core-lpc111x.git
-[submodule "tests/dali_py"]
-	path = tests/dali_py
-	url = git@github.com:SvenHaedrich/dali_py.git
-[submodule "tests/scripts/dali_py"]
-	path = tests/scripts/dali_py
-	url = git@github.com:SvenHaedrich/dali_py.git
 [submodule "tests/scripts/dali_interface"]
 	path = tests/scripts/dali_interface
 	url = git@github.com:SvenHaedrich/dali_interface.git
