@@ -17,7 +17,7 @@
 #define NOTIFY_PRIORITY (0x04)
 #define NOTIFY_QUERY (0x08)
 
-#define QUEUE_SIZE (5U)
+#define QUEUE_SIZE (6U) // one slot is kept free to report an overflow
 
 enum rx_status {
     IDLE = 0,
@@ -69,6 +69,7 @@ struct _rx {
     bool last_data_bit;
     bool transmission_is_waiting;
     enum dali_frame_type transmission_frame_type;
+    bool queue_overflow;
     TaskHandle_t task_handle;
     QueueHandle_t queue_handle;
 } rx = { 0 };
@@ -151,6 +152,23 @@ static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
     return true;
 }
 
+static void queue_frame_for_send(const struct dali_rx_frame* frame)
+{
+    if (uxQueueSpacesAvailable(rx.queue_handle) > 1) {
+        if (xQueueSendToBack(rx.queue_handle, frame, 0) == pdPASS) {
+            rx.queue_overflow = false;
+            return;
+        }
+    }
+    if (!rx.queue_overflow) {
+        const struct dali_rx_frame overflow = { .timestamp = pdTICKS_TO_MS(xTaskGetTickCount()),
+                                                .status = DALI_ERROR_DALI_QUEUE_FULL };
+        if (xQueueSendToBack(rx.queue_handle, &overflow, 0) == pdPASS) {
+            rx.queue_overflow = true;
+        }
+    }
+}
+
 void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
@@ -165,7 +183,7 @@ void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
     rx.frame.status = code;
     rx.frame.length = 0;
     rx.frame.data = (time_us & 0xffffff) << 8 | bit;
-    xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+    queue_frame_for_send(&rx.frame);
     rx.status = ERROR_IN_FRAME;
 }
 
@@ -202,7 +220,7 @@ static void generate_timeout_frame(void)
         rx.frame.length = 0;
         rx.frame.loopback = false;
         rx.frame.data = 0;
-        xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+        queue_frame_for_send(&rx.frame);
         rx_reset();
     }
 }
@@ -285,10 +303,7 @@ static void queue_frame(void)
 {
     rx.last_full_frame_count = rx.last_edge_count;
     rx.frame.twice = is_frame_received_twice();
-    const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
-    if (result == errQUEUE_FULL) {
-        configASSERT(false);
-    }
+    queue_frame_for_send(&rx.frame);
     rx.frame = (struct dali_rx_frame){ 0 };
 }
 
