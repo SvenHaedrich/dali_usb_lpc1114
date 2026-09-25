@@ -1,0 +1,8 @@
+# include-what-you-use mappings for this project.
+#
+# newlib defines the errno values in <sys/errno.h> and <errno.h> is the standard
+# header that includes it. Without this, IWYU asks for the private header.
+[
+    { include: ["<sys/errno.h>", "private", "<errno.h>", "public"] },
+    { symbol: ["errno", "private", "<errno.h>", "public"] }
+]

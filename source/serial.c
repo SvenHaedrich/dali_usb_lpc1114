@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>   // strtoul
 #include <stdint.h>   // uintXX_t
-#include <inttypes.h> // PRIu32..
 #include <stdbool.h>  // for bool
 #include <limits.h>   // UINT_MAX
 #include <errno.h>    // for EAGAIN
