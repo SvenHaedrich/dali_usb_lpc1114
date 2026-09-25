@@ -28,7 +28,7 @@ PORTNAME = "/dev/ttyUSB0"
 BAUDRATE = 500000
 
 # an output message, see doc/messages.md
-MESSAGE = re.compile(rb"^\{[0-9a-f]{8}[:>][0-9a-f]{2} [0-9a-f]{8}\}$")
+MESSAGE = re.compile(rb"^\{[0-9A-F]{8}[:>][0-9A-F]{2} [0-9A-F]{8}\}$")
 LOOPBACK_INDEX = 9
 DATA_SLICE = slice(13, 21)
 STATUS_SLICE = slice(10, 12)

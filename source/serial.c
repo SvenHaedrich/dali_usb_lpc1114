@@ -35,6 +35,16 @@
 #define SERIAL_CHAR_TWICE '+'
 #define SERIAL_CHAR_EOL 0x0d
 
+// the version is known at compile time, so the banner needs no formatting
+#define SERIAL_STRINGIFY_(x) #x
+#define SERIAL_STRINGIFY(x) SERIAL_STRINGIFY_(x)
+#define SERIAL_VERSION_STRING                                                                                          \
+    "Version " SERIAL_STRINGIFY(MAJOR_VERSION_SOFTWARE) "." SERIAL_STRINGIFY(                                          \
+        MINOR_VERSION_SOFTWARE) "." SERIAL_STRINGIFY(BUGFIX_VERSION_SOFTWARE) " \r\n\r"
+
+// '{' + 8 timestamp + separator + 2 length + ' ' + 8 data + '}' + '\r' + '\0'
+#define SERIAL_MESSAGE_SIZE (24U)
+
 #define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
 #define SERIAL_PRIORITY (tskIDLE_PRIORITY + 3U)
 #define SERIAL_QUEUE_LENGTH (4U)
@@ -63,16 +73,34 @@ struct _serial {
 
 void serial_print_head(void)
 {
-    printf("DALI USB interface - SevenLab 2025\r\n");
-    printf("Version %d.%d.%d \r\n", MAJOR_VERSION_SOFTWARE, MINOR_VERSION_SOFTWARE, BUGFIX_VERSION_SOFTWARE);
-    printf("\r\n");
+    puts("DALI USB interface - SevenLab 2026\r");
+    puts(SERIAL_VERSION_STRING);
+}
+
+static char* serial_utoa(char* out, uint32_t value, uint_fast8_t digits)
+{
+    while (digits--) {
+        *out++ = "0123456789ABCDEF"[(value >> (digits * 4)) & 0xF];
+    }
+    return out;
 }
 
 void serial_print_frame(const struct dali_rx_frame frame)
 {
-    const char c = frame.loopback ? '>' : ':';
     const uint8_t length = (frame.status > DALI_OK) ? frame.status : frame.length;
-    printf("{%08lx%c%02x %08lx}\r\n", frame.timestamp, c, length, frame.data);
+    char message[SERIAL_MESSAGE_SIZE];
+    char* next = message;
+
+    *next++ = '{';
+    next = serial_utoa(next, frame.timestamp, 8);
+    *next++ = frame.loopback ? '>' : ':';
+    next = serial_utoa(next, length, 2);
+    *next++ = ' ';
+    next = serial_utoa(next, frame.data, 8);
+    *next++ = '}';
+    *next++ = '\r';
+    *next = '\000';
+    puts(message);
 }
 
 static void print_parameter_error(void)
