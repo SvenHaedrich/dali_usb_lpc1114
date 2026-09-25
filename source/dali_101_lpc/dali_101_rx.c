@@ -1,15 +1,16 @@
 // clang-format off
-#include <errno.h>       // for EAGAIN
-#include <limits.h>      // for ULONG_MAX
-#include <stdbool.h>     // for false, true, bool
-#include <stddef.h>      // for NULL
-#include <stdint.h>      // for uint32_t, uint8_t
-#include "FreeRTOS.h"    // for pdFALSE, pdTICKS_TO_MS, configASSERT, config...
-#include "board/dali.h"  // for board_dali_rx_pin, board_dali_rx_stopbit_mat...
-#include "dali_101.h"    // for dali_rx_frame, dali_101_tx_is_idle, dali_fra...
-#include "portmacro.h"   // for BaseType_t, portYIELD_FROM_ISR, portMAX_DELAY
-#include "queue.h"       // for xQueueReceive, xQueueSendToBack, QueueDefini...
-#include "task.h"        // for xTaskGetTickCount, eSetBits, xTaskNotifyFromISR
+#include <errno.h>             // for EAGAIN
+#include <limits.h>            // for ULONG_MAX
+#include <stdbool.h>           // for false, true, bool
+#include <stddef.h>            // for NULL
+#include <stdint.h>            // for uint32_t, uint8_t
+#include "FreeRTOS.h"          // for pdFALSE, pdTICKS_TO_MS, configASSERT, config...
+#include "board/dali.h"        // for board_dali_rx_pin, board_dali_rx_stopbit_mat...
+#include "dali_101.h"          // for dali_rx_frame, dali_101_tx_is_idle, dali_fra...
+#include "dali_101_private.h"  // for dali_tx_start_send, tx_reset, dali_tx_repeat
+#include "portmacro.h"         // for BaseType_t, portYIELD_FROM_ISR, portMAX_DELAY
+#include "queue.h"             // for xQueueReceive, xQueueSendToBack, QueueDefini...
+#include "task.h"              // for xTaskGetTickCount, eSetBits, xTaskNotifyFromISR
 // clang-format on
 
 #define DALI_RX_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
@@ -76,13 +77,6 @@ struct _rx {
     TaskHandle_t task_handle;
     QueueHandle_t queue_handle;
 } rx = { 0 };
-
-// external references from tx module
-extern void dali_tx_init(void);
-extern void dali_tx_start_send(void);
-extern uint32_t tx_get_settling_time(void);
-extern bool dali_tx_repeat(void);
-extern void tx_reset(void);
 
 void dali_rx_irq_capture_callback(void)
 {
@@ -172,7 +166,7 @@ static void queue_frame_for_send(const struct dali_rx_frame* frame)
     }
 }
 
-void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
+static void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
         return;
