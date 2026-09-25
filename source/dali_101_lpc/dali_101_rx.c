@@ -508,6 +508,7 @@ static void dali_rx_init(void)
     static StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
     rx.task_handle =
         xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, NULL, DALI_RX_PRIORITY, task_stack, &task_buffer);
+    configASSERT(rx.task_handle);
 
     static uint8_t queue_storage[QUEUE_SIZE * sizeof(struct dali_rx_frame)];
     static StaticQueue_t queue_buffer;

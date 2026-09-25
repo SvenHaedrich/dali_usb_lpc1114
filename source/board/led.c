@@ -5,6 +5,7 @@
 #include "FreeRTOS.h"  // for StaticTimer_t, configASSERT, pdFALSE, pdPASS
 #include "dali.h"      // for board_dali_rx_pin, DALI_RX_IDLE
 #include "lpc11xx.h"   // for LPC_GPIO2, LPC_GPIO_TypeDef, (anonymous struct...
+#include "task.h"      // for taskDISABLE_INTERRUPTS
 #include "timers.h"    // for TimerHandle_t, tmrTimerControl, xTimerCreateSt...
 // clang-format on
 
@@ -60,8 +61,8 @@ static void heartbeat(TimerHandle_t __attribute__((unused)) dummy)
 
 void board_indicate_error(void)
 {
+    taskDISABLE_INTERRUPTS();
     for (uint_fast8_t i = 0; i < LED_MAX; i++) {
-        xTimerStop(led_handle[i], 0);
         set(i);
     }
 }
@@ -78,9 +79,11 @@ static void led_2_timeout(__attribute__((unused)) TimerHandle_t dummy)
 
 void board_flash(enum board_led id)
 {
-    if (id == LED_SERIAL || id == LED_DALI) {
+    if (id != LED_SERIAL && id != LED_DALI) {
+        return;
+    }
+    if (xTimerStart(led_handle[id], 0) == pdPASS) {
         set(id);
-        xTimerStart(led_handle[id], 0);
     }
 }
 
