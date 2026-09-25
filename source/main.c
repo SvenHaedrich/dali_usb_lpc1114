@@ -51,7 +51,9 @@ int main(void)
 
     static StaticTask_t task_buffer;
     static StackType_t task_stack[MAIN_TASK_STACKSIZE];
-    xTaskCreateStatic(main_task, "MAIN", MAIN_TASK_STACKSIZE, NULL, MAIN_PRIORITY, task_stack, &task_buffer);
+    const TaskHandle_t task_handle =
+        xTaskCreateStatic(main_task, "MAIN", MAIN_TASK_STACKSIZE, NULL, MAIN_PRIORITY, task_stack, &task_buffer);
+    configASSERT(task_handle);
 
     vTaskStartScheduler();
 }
