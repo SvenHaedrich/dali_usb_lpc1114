@@ -1,4 +1,5 @@
 // clang-format off
+#include <errno.h>       // for EINVAL, ENOSPC
 #include <stdbool.h>     // for true, false, bool
 #include <stdint.h>      // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
 #include "board/dali.h"  // for board_dali_tx_set, board_dali_tx_timer_next
@@ -29,9 +30,9 @@ struct _tx {
     bool state_now;
     uint8_t repeat;
     bool is_query;
+    bool sequence; // a sequence is defined and not executed yet
 } tx;
 
-extern void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
 extern void rx_schedule_transmission(enum dali_frame_type type);
 extern void rx_schedule_query(void);
 
@@ -45,13 +46,13 @@ void tx_reset(void)
     tx.index_max = 0;
     tx.state_now = true;
     tx.count[0] = 0;
+    tx.sequence = false;
 }
 
-static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
+static int add_signal_phase(uint32_t duration_us, bool change_last_phase)
 {
     if (tx.index_max >= COUNT_ARRAY_SIZE) {
-        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-        return true;
+        return -ENOSPC;
     }
     uint32_t count_now;
     if (tx.index_max & 1) {
@@ -66,68 +67,72 @@ static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
         count_now += tx.count[tx.index_max - 1];
     }
     tx.count[tx.index_max++] = count_now;
-    return false;
+    return 0;
 }
 
-static bool add_bit(bool value)
+static int add_bit(bool value)
 {
+    int rc;
     if (tx.state_now == value) {
-        if (add_signal_phase(dali_timing.half_bit_us, false) || add_signal_phase(dali_timing.half_bit_us, false)) {
-            return true;
+        rc = add_signal_phase(dali_timing.half_bit_us, false);
+        if (!rc) {
+            rc = add_signal_phase(dali_timing.half_bit_us, false);
         }
-
     } else {
-        if (add_signal_phase(dali_timing.full_bit_us, true) || add_signal_phase(dali_timing.half_bit_us, false)) {
-            return true;
+        rc = add_signal_phase(dali_timing.full_bit_us, true);
+        if (!rc) {
+            rc = add_signal_phase(dali_timing.half_bit_us, false);
         }
+    }
+    if (rc) {
+        return rc;
     }
     tx.state_now = value;
-    return false;
+    return 0;
 }
 
-static bool add_stop_condition(void)
+static int add_stop_condition(void)
 {
+    int rc;
     if (tx.state_now) {
-        if (add_signal_phase(dali_timing.stop_condition_us, true)) {
-            return true;
-        }
-        tx.index_max--;
+        rc = add_signal_phase(dali_timing.stop_condition_us, true);
     } else {
-        if (add_signal_phase(dali_timing.stop_condition_us, false)) {
-            return true;
-        }
-        tx.index_max--;
+        rc = add_signal_phase(dali_timing.stop_condition_us, false);
     }
-    return false;
+    if (rc) {
+        return rc;
+    }
+    tx.index_max--;
+    return 0;
 }
 
-static bool calculate_counts(const struct dali_tx_frame frame)
+static int calculate_counts(const struct dali_tx_frame frame)
 {
     if (frame.length > DALI_MAX_DATA_LENGTH) {
-        queue_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
-        return true;
+        return -EINVAL;
     }
 
-    if (add_bit(true)) {
-        return true;
+    int rc = add_bit(true);
+    if (rc) {
+        return rc;
     }
 
     if (frame.type == DALI_FRAME_CORRUPT) {
         for (int_fast8_t i = 0; i < 16; i++) {
             if (i == EXTEND_CORRUPT_PHASE) {
-                if (add_signal_phase(dali_timing.corrupt_bit_us, false)) {
-                    return true;
-                }
+                rc = add_signal_phase(dali_timing.corrupt_bit_us, false);
             } else {
-                if (add_signal_phase(dali_timing.half_bit_us, false)) {
-                    return true;
-                }
+                rc = add_signal_phase(dali_timing.half_bit_us, false);
+            }
+            if (rc) {
+                return rc;
             }
         }
     } else {
         for (int_fast8_t i = (frame.length - 1); i >= 0; i--) {
-            if (add_bit(frame.data & (1 << i))) {
-                return true;
+            rc = add_bit(frame.data & (1 << i));
+            if (rc) {
+                return rc;
             }
         }
     }
@@ -175,14 +180,15 @@ bool dali_tx_repeat(void)
     return false;
 }
 
-void dali_101_send(const struct dali_tx_frame frame)
+int dali_101_send(const struct dali_tx_frame frame)
 {
     if (frame.type == DALI_FRAME_NONE) {
-        return;
+        return -EINVAL;
     }
     tx_reset();
-    if (calculate_counts(frame)) {
-        return;
+    const int rc = calculate_counts(frame);
+    if (rc) {
+        return rc;
     }
     if (frame.type == DALI_FRAME_QUERY_1 || frame.type == DALI_FRAME_QUERY_2 || frame.type == DALI_FRAME_QUERY_3 ||
         frame.type == DALI_FRAME_QUERY_4 || frame.type == DALI_FRAME_QUERY_5) {
@@ -190,28 +196,38 @@ void dali_101_send(const struct dali_tx_frame frame)
     }
     tx.repeat = frame.repeat;
     rx_schedule_transmission(frame.type);
-    return;
+    return 0;
 }
 
 void dali_101_sequence_start(void)
 {
     tx_reset();
     tx.repeat = 0;
+    tx.sequence = true;
 }
 
-void dali_101_sequence_next(uint32_t period_us)
+int dali_101_sequence_next(uint32_t period_us)
 {
-    add_signal_phase(period_us, false);
-}
-
-void dali_101_sequence_execute(void)
-{
-    if (tx.index_next >= tx.index_max || tx.index_max == 0) {
-        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-        return;
+    if (!tx.sequence) {
+        return -EINVAL;
     }
+    const int rc = add_signal_phase(period_us, false);
+    if (rc) {
+        tx.sequence = false;
+        return rc;
+    }
+    return 0;
+}
+
+int dali_101_sequence_execute(void)
+{
+    if (!tx.sequence || tx.index_next >= tx.index_max || tx.index_max == 0) {
+        return -EINVAL;
+    }
+    tx.sequence = false;
     tx.index_max--;
     dali_tx_start_send();
+    return 0;
 }
 
 void dali_tx_init(void)

@@ -89,3 +89,63 @@ def test_queue_overflow(dali_serial):
     for i in range(queue_size + overfill):
         result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.TIMEOUT
+
+
+def test_sequence_execute_without_definition(dali_serial):
+    """`X` on its own must be refused instead of replaying the last frame.
+
+    `tx.index_max` counts the phases in the transmit buffer and says nothing
+    about whether they are a sequence or the frame that was sent last, so `X`
+    used to put the previous DALI command back on the bus.
+    """
+    dali_serial.port.write("S1 10 ABCD\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.data == 0xABCD
+
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+
+def test_sequence_next_without_start(dali_serial):
+    """`N` without a preceding `W` has no sequence to add to."""
+    dali_serial.port.write("N64\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+
+def test_overflowed_sequence_is_not_executed(dali_serial):
+    """A sequence that did not fit must not be sent in its truncated form."""
+    dali_serial.port.write("W1a4\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    for _ in range(70):
+        dali_serial.port.write("N1a4\r".encode("ascii"))
+        time.sleep(time_for_command_processing)
+    time.sleep(0.2)
+    dali_serial.flush_queue()
+
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+
+def test_rejected_sequence_does_not_stall_the_transmitter(dali_serial):
+    """Reporting a rejected command must not disturb frame reception.
+
+    The report used to travel through `queue_error_frame()`, which leaves
+    `rx.status` at `ERROR_IN_FRAME`. Called from the SERIAL task that stopped
+    `rx_schedule_transmission()` from ever starting a transmission again, so two
+    bytes were enough to silence the adapter until it was reset.
+    """
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+
+    dali_serial.port.write("S1 10 5A5A\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.data == 0x5A5A

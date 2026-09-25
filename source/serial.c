@@ -5,6 +5,7 @@
 #include <inttypes.h> // PRIu32..
 #include <stdbool.h>  // for bool
 #include <limits.h>   // UINT_MAX
+#include <errno.h>    // for EAGAIN
 
 #include "FreeRTOS.h" // tasks and queues
 #include "task.h"
@@ -80,6 +81,15 @@ static void print_parameter_error(void)
     const struct dali_rx_frame frame = {
         .timestamp = xTaskGetTickCount(),
         .status = DALI_ERROR_BAD_COMMAND,
+    };
+    serial_print_frame(frame);
+}
+
+void serial_print_cannot_process(void)
+{
+    const struct dali_rx_frame frame = {
+        .timestamp = xTaskGetTickCount(),
+        .status = DALI_ERROR_CAN_NOT_PROCESS,
     };
     serial_print_frame(frame);
 }
@@ -240,7 +250,9 @@ static void next_sequence(char* argument_buffer)
         print_parameter_error();
         return;
     }
-    dali_101_sequence_next(period_us);
+    if (dali_101_sequence_next(period_us) < 0) {
+        serial_print_cannot_process();
+    }
 }
 
 static void start_sequence(char* argument_buffer)
@@ -252,7 +264,9 @@ static void start_sequence(char* argument_buffer)
         return;
     }
     dali_101_sequence_start();
-    dali_101_sequence_next(period_us);
+    if (dali_101_sequence_next(period_us) < 0) {
+        serial_print_cannot_process();
+    }
 }
 
 __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* dummy)
@@ -296,7 +310,9 @@ __attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* 
                 break;
             case SERIAL_CMD_EXECUTE_SEQ:
                 board_flash(LED_SERIAL);
-                dali_101_sequence_execute();
+                if (dali_101_sequence_execute() < 0) {
+                    serial_print_cannot_process();
+                }
                 break;
             }
         }
@@ -362,10 +378,10 @@ void UART_IRQHandler(void)
     }
 }
 
-bool serial_get(struct dali_tx_frame* frame, TickType_t wait)
+int serial_get(struct dali_tx_frame* frame, TickType_t wait)
 {
     const BaseType_t rc = xQueueReceive(serial.queue_handle, frame, wait);
-    return (rc == pdPASS);
+    return (rc == pdPASS) ? 0 : -EAGAIN;
 }
 
 static void serial_initialize_uart_interrupt(void)
