@@ -28,13 +28,15 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
     struct dali_rx_frame rx_frame;
     struct dali_tx_frame tx_frame;
     while (true) {
-        if (dali_101_get(&rx_frame, 0, false)) {
+        if (dali_101_get(&rx_frame, 0, false) == 0) {
             board_flash(LED_DALI);
             serial_print_frame(rx_frame);
         }
         if (dali_101_tx_is_idle()) {
-            if (serial_get(&tx_frame, 0)) {
-                dali_101_send(tx_frame);
+            if (serial_get(&tx_frame, 0) == 0) {
+                if (dali_101_send(tx_frame) < 0) {
+                    serial_print_cannot_process();
+                }
             }
         }
     }

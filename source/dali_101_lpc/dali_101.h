@@ -84,8 +84,11 @@ void dali_101_init(void);
  * @brief Send DALI frame
  *
  * @param frame frame to send
+ * @return 0 - frame accepted for transmission
+ * @return -EINVAL - no frame type, or more data bits than DALI_MAX_DATA_LENGTH
+ * @return -ENOSPC - waveform does not fit
  */
-void dali_101_send(const struct dali_tx_frame frame);
+int dali_101_send(const struct dali_tx_frame frame);
 
 /**
  * @brief Get the next frame from the input queue.
@@ -93,10 +96,10 @@ void dali_101_send(const struct dali_tx_frame frame);
  * @param frame received frame
  * @param wait_ms number of milliseconds to wait for a frame from queue
  * @param forever if `true` the get function will not timeout. `wait_ms` is disregarded.
- * @return `true` - a frame was received and is availabe
- * @return `false`-  no frame availabe, discard buffer
+ * @return 0 - a frame was received and is available
+ * @return -EAGAIN - no frame available, discard buffer
  */
-bool dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever);
+int dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever);
 
 /**
  * @brief Check if a transmission is active or pending
@@ -116,14 +119,19 @@ void dali_101_sequence_start(void);
  * @brief Define next period for sequence
  *
  * @param period_us duration for the next period, given in micro seconds
+ * @return 0 - period added
+ * @return -EINVAL - no sequence was started
+ * @return -ENOSPC - the sequence does not fit
  */
-void dali_101_sequence_next(uint32_t period_us);
+int dali_101_sequence_next(uint32_t period_us);
 
 /**
  * @brief Send the sequence
  *
+ * @return 0 - sequence is being sent
+ * @return -EINVAL - no sequence to send
  */
-void dali_101_sequence_execute(void);
+int dali_101_sequence_execute(void);
 
 /* callback functions defined by the low level driver
  *  to be called by the board interface module

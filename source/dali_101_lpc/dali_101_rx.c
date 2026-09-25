@@ -1,4 +1,5 @@
 // clang-format off
+#include <errno.h>       // for EAGAIN
 #include <limits.h>      // for ULONG_MAX
 #include <stdbool.h>     // for false, true, bool
 #include <stddef.h>      // for NULL
@@ -500,11 +501,11 @@ __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dumm
     }
 }
 
-bool dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever)
+int dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever)
 {
     TickType_t wait_ticks = forever ? portMAX_DELAY : pdMS_TO_TICKS(wait_ms);
     const BaseType_t rc = xQueueReceive(rx.queue_handle, frame, wait_ticks);
-    return (rc == pdPASS);
+    return (rc == pdPASS) ? 0 : -EAGAIN;
 }
 
 static void dali_rx_init(void)
