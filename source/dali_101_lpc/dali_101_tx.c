@@ -1,9 +1,10 @@
 // clang-format off
-#include <errno.h>       // for EINVAL, ENOSPC
-#include <stdbool.h>     // for true, false, bool
-#include <stdint.h>      // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
-#include "board/dali.h"  // for board_dali_tx_set, board_dali_tx_timer_next
-#include "dali_101.h"    // for dali_tx_frame, DALI_MAX_DATA_LENGTH, DALI_ER...
+#include <errno.h>             // for EINVAL, ENOSPC
+#include <stdbool.h>           // for true, false, bool
+#include <stdint.h>            // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
+#include "board/dali.h"        // for board_dali_tx_set, board_dali_tx_timer_next
+#include "dali_101.h"          // for dali_tx_frame, DALI_MAX_DATA_LENGTH, DALI_ER...
+#include "dali_101_private.h"  // for rx_schedule_transmission, rx_schedule_query
 // clang-format on
 
 #define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
@@ -32,9 +33,6 @@ struct _tx {
     bool is_query;
     bool sequence; // a sequence is defined and not executed yet
 } tx;
-
-extern void rx_schedule_transmission(enum dali_frame_type type);
-extern void rx_schedule_query(void);
 
 void tx_reset(void)
 {
