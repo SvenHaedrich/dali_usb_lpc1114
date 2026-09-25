@@ -130,6 +130,23 @@ static void print_queue_full_error(void)
     serial_print_frame(frame);
 }
 
+static bool read_u64_hex_argument(char** position, uint64_t* value)
+{
+    const char* start = *position;
+    *value = strtoull(start, position, 16);
+    return (*position != start);
+}
+
+static bool read_u8_hex_argument(char** position, uint8_t* value)
+{
+    uint64_t wide_value;
+    if (!read_u64_hex_argument(position, &wide_value) || wide_value > UINT8_MAX) {
+        return false;
+    }
+    *value = (uint8_t)wide_value;
+    return true;
+}
+
 static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
 {
     if (length > DALI_MAX_DATA_LENGTH) {
@@ -184,7 +201,10 @@ static enum dali_frame_type get_query_type(uint8_t priority)
 
 static bool data_illegal(uint64_t data, uint8_t length)
 {
-    const uint64_t upper_limit = ((uint64_t)1 << length) + 1;
+    if (length > DALI_MAX_DATA_LENGTH) {
+        return true;
+    }
+    const uint64_t upper_limit = (uint64_t)1 << length;
     return (data >= upper_limit);
 }
 
@@ -197,12 +217,25 @@ static void queue_frame(const struct dali_tx_frame frame)
 
 static void query_command(char* argument_buffer)
 {
-    char* end_of_read;
-    const uint8_t priority = strtoul(argument_buffer, &end_of_read, 16);
-    const uint8_t length = strtoul(end_of_read, &end_of_read, 16);
-    const char twice_indicator = *end_of_read++;
-    const uint64_t data = strtoull(end_of_read, &end_of_read, 16);
+    char* position = argument_buffer;
+    uint8_t priority;
+    uint8_t length;
+    uint64_t data;
 
+    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &length)) {
+        print_parameter_error();
+        return;
+    }
+    const char twice_indicator = *position;
+    if (twice_indicator == '\000') {
+        print_parameter_error();
+        return;
+    }
+    position++;
+    if (!read_u64_hex_argument(&position, &data)) {
+        print_parameter_error();
+        return;
+    }
     if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
         print_parameter_error();
         return;
@@ -210,18 +243,31 @@ static void query_command(char* argument_buffer)
     const struct dali_tx_frame frame = { .type = get_query_type(priority),
                                          .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
                                          .length = length,
-                                         .data = data };
+                                         .data = (uint32_t)data };
     queue_frame(frame);
 }
 
 static void send_forward_frame_command(char* argument_buffer)
 {
-    char* end_of_read;
-    const uint8_t priority = strtoul(argument_buffer, &end_of_read, 16);
-    const uint8_t length = strtoul(end_of_read, &end_of_read, 16);
-    const char twice_indicator = *end_of_read++;
-    const uint64_t data = strtoull(end_of_read, &end_of_read, 16);
+    char* position = argument_buffer;
+    uint8_t priority;
+    uint8_t length;
+    uint64_t data;
 
+    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &length)) {
+        print_parameter_error();
+        return;
+    }
+    const char twice_indicator = *position;
+    if (twice_indicator == '\000') {
+        print_parameter_error();
+        return;
+    }
+    position++;
+    if (!read_u64_hex_argument(&position, &data)) {
+        print_parameter_error();
+        return;
+    }
     if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
         print_parameter_error();
         return;
@@ -229,16 +275,16 @@ static void send_forward_frame_command(char* argument_buffer)
     const struct dali_tx_frame frame = { .type = get_forward_type(priority),
                                          .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
                                          .length = length,
-                                         .data = data };
+                                         .data = (uint32_t)data };
     queue_frame(frame);
 }
 
 static void send_backframe_command(char* argument_buffer)
 {
-    char* end_of_read;
-    const uint64_t data = strtoull(argument_buffer, &end_of_read, 16);
+    char* position = argument_buffer;
+    uint8_t data;
 
-    if (data > 0xFF) {
+    if (!read_u8_hex_argument(&position, &data)) {
         print_parameter_error();
         return;
     }
@@ -254,17 +300,23 @@ static void send_corrupt_frame_command(void)
 
 static void send_repeated_command(char* argument_buffer)
 {
-    char* end_of_read;
-    const uint8_t priority = strtoul(argument_buffer, &end_of_read, 16);
-    const uint8_t repeat = strtoul(end_of_read, &end_of_read, 16);
-    const uint8_t length = strtoul(end_of_read, &end_of_read, 16);
-    const uint64_t data = strtoull(end_of_read, &end_of_read, 16);
+    char* position = argument_buffer;
+    uint8_t priority;
+    uint8_t repeat;
+    uint8_t length;
+    uint64_t data;
+
+    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &repeat) ||
+        !read_u8_hex_argument(&position, &length) || !read_u64_hex_argument(&position, &data)) {
+        print_parameter_error();
+        return;
+    }
     if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
         print_parameter_error();
         return;
     }
     const struct dali_tx_frame frame = {
-        .type = get_forward_type(priority), .repeat = repeat, .length = length, .data = data
+        .type = get_forward_type(priority), .repeat = repeat, .length = length, .data = (uint32_t)data
     };
     queue_frame(frame);
 }
