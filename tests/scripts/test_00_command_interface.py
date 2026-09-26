@@ -57,6 +57,23 @@ def test_version():
         ("S1 8 100\r", DaliStatus.INTERFACE, 0xA3),
         ("S1 10 10000\r", DaliStatus.INTERFACE, 0xA3),
         ("S1 20 100000000\r", DaliStatus.INTERFACE, 0xA3),
+        # characters the documented grammar does not allow
+        ("S1 10x1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("S1 10 1000junk\r", DaliStatus.INTERFACE, 0xA3),
+        ("S0x1 10 1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("S+1 10 1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("S1 10  1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("S1 1 0 1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("S1 10 1000+\r", DaliStatus.INTERFACE, 0xA3),
+        ("S1 10 -1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("Q1 10x1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("Y10junk\r", DaliStatus.INTERFACE, 0xA3),
+        ("R1 1 10 1000junk\r", DaliStatus.INTERFACE, 0xA3),
+        ("R1  1 10 1000\r", DaliStatus.INTERFACE, 0xA3),
+        ("Wzz\r", DaliStatus.INTERFACE, 0xA3),
+        ("N1a1junk\r", DaliStatus.INTERFACE, 0xA3),
+        ("I5\r", DaliStatus.INTERFACE, 0xA3),
+        ("X5\r", DaliStatus.INTERFACE, 0xA3),
     ],
 )
 def test_bad_parameter(dali_serial, command, expected_result, detailed_code):

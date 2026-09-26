@@ -1,5 +1,5 @@
 // clang-format off
-#include <stdlib.h>   // strtoul, strtoull
+#include <stdlib.h>   // for NULL
 #include <stdint.h>   // uintXX_t
 #include <stdbool.h>  // for bool
 #include <limits.h>   // UINT_MAX
@@ -55,11 +55,40 @@ void command_report_cannot_process(void)
     report_status(DALI_ERROR_CAN_NOT_PROCESS);
 }
 
+static bool is_hex_digit(char character)
+{
+    return ((character >= '0' && character <= '9') || (character >= 'A' && character <= 'F') ||
+            (character >= 'a' && character <= 'f'));
+}
+
+static uint_fast8_t hex_digit_value(char character)
+{
+    if (character <= '9') {
+        return (uint_fast8_t)(character - '0');
+    }
+    if (character <= 'F') {
+        return (uint_fast8_t)(character - 'A' + 10);
+    }
+    return (uint_fast8_t)(character - 'a' + 10);
+}
+
 static bool read_u64_hex_argument(char** position, uint64_t* value)
 {
     const char* start = *position;
-    *value = strtoull(start, position, 16);
-    return (*position != start);
+    uint64_t result = 0;
+
+    while (is_hex_digit(**position)) {
+        if (result > (UINT64_MAX >> 4)) {
+            return false;
+        }
+        result = (result << 4) | hex_digit_value(**position);
+        (*position)++;
+    }
+    if (*position == start) {
+        return false;
+    }
+    *value = result;
+    return true;
 }
 
 static bool read_u8_hex_argument(char** position, uint8_t* value)
@@ -70,6 +99,20 @@ static bool read_u8_hex_argument(char** position, uint8_t* value)
     }
     *value = (uint8_t)wide_value;
     return true;
+}
+
+static bool read_separator(char** position, char expected)
+{
+    if (**position != expected) {
+        return false;
+    }
+    (*position)++;
+    return true;
+}
+
+static bool at_end_of_command(const char* position)
+{
+    return (*position == '\000');
 }
 
 static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
@@ -140,67 +183,47 @@ static void queue_frame(const struct dali_tx_frame frame)
     }
 }
 
-static void query_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
+struct frame_arguments {
+    uint64_t data;
     uint8_t priority;
     uint8_t length;
-    uint64_t data;
+    bool twice;
+};
 
-    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &length)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
+static bool read_frame_arguments(char* position, struct frame_arguments* arguments)
+{
+    if (!read_u8_hex_argument(&position, &arguments->priority) || !read_separator(&position, ' ') ||
+        !read_u8_hex_argument(&position, &arguments->length)) {
+        return false;
     }
     const char twice_indicator = *position;
-    if (twice_indicator == '\000') {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
+    if (twice_indicator != ' ' && twice_indicator != COMMAND_CHAR_TWICE) {
+        return false;
     }
     position++;
-    if (!read_u64_hex_argument(&position, &data)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
+    if (!read_u64_hex_argument(&position, &arguments->data) || !at_end_of_command(position)) {
+        return false;
     }
-    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    const struct dali_tx_frame frame = { .type = get_query_type(priority),
-                                         .repeat = (twice_indicator == COMMAND_CHAR_TWICE) ? 1 : 0,
-                                         .length = length,
-                                         .data = (uint32_t)data };
-    queue_frame(frame);
+    arguments->twice = (twice_indicator == COMMAND_CHAR_TWICE);
+    return true;
 }
 
-static void send_forward_frame_command(char* argument_buffer)
+// 'Q' and 'S' take the same arguments and differ only in the frame type they ask for
+static void send_frame_command(char* argument_buffer, bool is_query)
 {
-    char* position = argument_buffer;
-    uint8_t priority;
-    uint8_t length;
-    uint64_t data;
+    struct frame_arguments arguments;
 
-    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &length)) {
+    if (!read_frame_arguments(argument_buffer, &arguments) ||
+        priority_or_length_illegal(arguments.priority, arguments.length) ||
+        data_illegal(arguments.data, arguments.length)) {
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
-    const char twice_indicator = *position;
-    if (twice_indicator == '\000') {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    position++;
-    if (!read_u64_hex_argument(&position, &data)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    const struct dali_tx_frame frame = { .type = get_forward_type(priority),
-                                         .repeat = (twice_indicator == COMMAND_CHAR_TWICE) ? 1 : 0,
-                                         .length = length,
-                                         .data = (uint32_t)data };
+    const struct dali_tx_frame frame = { .type = is_query ? get_query_type(arguments.priority)
+                                                          : get_forward_type(arguments.priority),
+                                         .repeat = arguments.twice ? 1 : 0,
+                                         .length = arguments.length,
+                                         .data = (uint32_t)arguments.data };
     queue_frame(frame);
 }
 
@@ -209,7 +232,7 @@ static void send_backframe_command(char* argument_buffer)
     char* position = argument_buffer;
     uint8_t data;
 
-    if (!read_u8_hex_argument(&position, &data)) {
+    if (!read_u8_hex_argument(&position, &data) || !at_end_of_command(position)) {
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
@@ -217,8 +240,12 @@ static void send_backframe_command(char* argument_buffer)
     queue_frame(frame);
 }
 
-static void send_corrupt_frame_command(void)
+static void send_corrupt_frame_command(const char* argument_buffer)
 {
+    if (!at_end_of_command(argument_buffer)) {
+        report_status(DALI_ERROR_BAD_COMMAND);
+        return;
+    }
     const struct dali_tx_frame frame = { .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0 };
     queue_frame(frame);
 }
@@ -231,8 +258,10 @@ static void send_repeated_command(char* argument_buffer)
     uint8_t length;
     uint64_t data;
 
-    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &repeat) ||
-        !read_u8_hex_argument(&position, &length) || !read_u64_hex_argument(&position, &data)) {
+    if (!read_u8_hex_argument(&position, &priority) || !read_separator(&position, ' ') ||
+        !read_u8_hex_argument(&position, &repeat) || !read_separator(&position, ' ') ||
+        !read_u8_hex_argument(&position, &length) || !read_separator(&position, ' ') ||
+        !read_u64_hex_argument(&position, &data) || !at_end_of_command(position)) {
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
@@ -246,11 +275,23 @@ static void send_repeated_command(char* argument_buffer)
     queue_frame(frame);
 }
 
+static bool read_period_argument(char* argument_buffer, uint32_t* period_us)
+{
+    char* position = argument_buffer;
+    uint64_t value;
+
+    if (!read_u64_hex_argument(&position, &value) || !at_end_of_command(position) || value > UINT32_MAX) {
+        return false;
+    }
+    *period_us = (uint32_t)value;
+    return true;
+}
+
 static void next_sequence(char* argument_buffer)
 {
-    char* end_of_read;
-    const uint32_t period_us = strtoul(argument_buffer, &end_of_read, 16);
-    if (period_us == 0) {
+    uint32_t period_us;
+
+    if (!read_period_argument(argument_buffer, &period_us)) {
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
@@ -261,14 +302,25 @@ static void next_sequence(char* argument_buffer)
 
 static void start_sequence(char* argument_buffer)
 {
-    char* end_of_read;
-    const uint32_t period_us = strtoul(argument_buffer, &end_of_read, 16);
-    if (period_us == 0) {
+    uint32_t period_us;
+
+    if (!read_period_argument(argument_buffer, &period_us)) {
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
     dali_101_sequence_start();
     if (dali_101_sequence_next(period_us) < 0) {
+        report_status(DALI_ERROR_CAN_NOT_PROCESS);
+    }
+}
+
+static void execute_sequence(const char* argument_buffer)
+{
+    if (!at_end_of_command(argument_buffer)) {
+        report_status(DALI_ERROR_BAD_COMMAND);
+        return;
+    }
+    if (dali_101_sequence_execute() < 0) {
         report_status(DALI_ERROR_CAN_NOT_PROCESS);
     }
 }
@@ -282,11 +334,11 @@ __attribute__((noreturn)) static void command_task(__attribute__((unused)) void*
             switch (command.line[COMMAND_IDX_CMD]) {
             case COMMAND_QUERY:
                 board_flash(LED_SERIAL);
-                query_command(&command.line[COMMAND_IDX_ARG]);
+                send_frame_command(&command.line[COMMAND_IDX_ARG], true);
                 break;
             case COMMAND_SEND:
                 board_flash(LED_SERIAL);
-                send_forward_frame_command(&command.line[COMMAND_IDX_ARG]);
+                send_frame_command(&command.line[COMMAND_IDX_ARG], false);
                 break;
             case COMMAND_BACKFRAME:
                 board_flash(LED_SERIAL);
@@ -294,7 +346,7 @@ __attribute__((noreturn)) static void command_task(__attribute__((unused)) void*
                 break;
             case COMMAND_CORRUPT:
                 board_flash(LED_SERIAL);
-                send_corrupt_frame_command();
+                send_corrupt_frame_command(&command.line[COMMAND_IDX_ARG]);
                 break;
             case COMMAND_REPEAT:
                 board_flash(LED_SERIAL);
@@ -314,9 +366,7 @@ __attribute__((noreturn)) static void command_task(__attribute__((unused)) void*
                 break;
             case COMMAND_EXECUTE_SEQ:
                 board_flash(LED_SERIAL);
-                if (dali_101_sequence_execute() < 0) {
-                    report_status(DALI_ERROR_CAN_NOT_PROCESS);
-                }
+                execute_sequence(&command.line[COMMAND_IDX_ARG]);
                 break;
             }
         }
