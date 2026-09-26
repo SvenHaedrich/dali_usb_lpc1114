@@ -64,10 +64,10 @@ static int add_signal_phase(uint32_t duration_us, bool change_last_phase)
     if (change_last_phase && tx.index_max == 0) {
         return -EINVAL;
     }
-    // the parity of the phase decides the sign of the compensation, and it is taken
-    // before change_last_phase rewinds the index
+    const uint_fast8_t index = change_last_phase ? (tx.index_max - 1U) : tx.index_max;
+    // the parity of the phase this lands on decides the sign of the compensation
     uint32_t count_now;
-    if (tx.index_max & 1) {
+    if (index & 1) {
         if (duration_us > (UINT32_MAX - DALI_TX_COMPENSATION_US)) {
             return -EINVAL;
         }
@@ -75,7 +75,6 @@ static int add_signal_phase(uint32_t duration_us, bool change_last_phase)
     } else {
         count_now = duration_us - DALI_TX_COMPENSATION_US;
     }
-    const uint_fast8_t index = change_last_phase ? (tx.index_max - 1U) : tx.index_max;
     const uint32_t previous = index ? tx.count[index - 1U] : 0U;
     // the counts are absolute and the timer is not allowed to roll over, so the whole
     // sequence has to fit into the counter
