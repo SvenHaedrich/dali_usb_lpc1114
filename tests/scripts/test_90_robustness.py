@@ -87,9 +87,15 @@ def loopback_frames(lines):
 
 
 def is_responsive(port, attempts=3):
-    """send a forward frame and look for its loopback message"""
+    """send a forward frame and look for its loopback message
+
+    The stream has to be quiet before the probe goes out. A previous test can
+    still be emitting when this one starts, and one of the messages it is still
+    sending is the loopback of its own probe - which would answer this probe
+    before it was ever transmitted, and hide that the adapter is busy.
+    """
     for attempt in range(attempts):
-        drain(port, 0.3)
+        drain_until_quiet(port, quiet_sec=0.3, limit_sec=10.0)
         port.write(PROBE_COMMAND)
         port.flush()
         for line in loopback_frames(messages(drain(port, 1.0))):
