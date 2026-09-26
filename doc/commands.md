@@ -12,8 +12,7 @@ Send a DALI forward frame and report the systems reaction. A backframe message i
     'Q' <priority> ' ' <bits> (' '|'+') <data> EOL
 
     'Q'        : command code
-    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22. 
-                 priority = 6 sends a frame immediately after the stop condition 
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     ' ' | '+'  : a plus indicates that the forward frame is send twice
     <data>     : frame data to send in hex presentation
@@ -26,7 +25,8 @@ Send a DALI forward frame.
     'S' <priority> ' ' <bits> (' '|'+') <data> EOL
 
     'S'        : command code
-    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22.
+                 priority = 6 sends the frame immediately after the stop condition
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     ' ' | '+'  : a plus indicates that the frame is send twice
     <data>     : frame data to send in hex presentation
@@ -39,8 +39,9 @@ Send identical DALI frames repeated times. Note that sending repeated frames twi
     'R' <priority> ' ' <repeat> ' ' <bits> ' ' <data> EOL
 
     'R'        : command code
-    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
-    <repeat>   : number of repetitions in hex presentation 
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22.
+                 priority = 6 sends the frames immediately after the stop condition
+    <repeat>   : number of repetitions in hex presentation (00..FF)
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     <data>     : frame data to send in hex presentation
     EOL        : end of line = 0x0d
@@ -73,7 +74,9 @@ Start the defintion of a sequence.
     'W' <period> EOL
 
     'W'      : command code
-    <period> : time in microseconds, given in hex representation.
+    <period> : time in microseconds, given in hex representation. Larger than 24, the rise and fall
+               time the transmitter compensates for. The periods of a sequence add up, and the total
+               has to fit into the 32 bit microsecond counter.
     EOL      : end of line = 0x0d
 
 ## Next Sequence Step `N`
@@ -83,8 +86,7 @@ Continue to define the timing for a sequence.
     'N' <period> EOL
 
     'N'      : command code
-    <period> : time in microseconds, given in hex 
-               representation.
+    <period> : as for `W`
     EOL      : end of line = 0x0d
 
 ## Execute Sequence `X`

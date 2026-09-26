@@ -21,7 +21,6 @@ Output messages use the following format (except for the firmware information me
 
  | Status Code | Description                      | Information in `data`     |
  |-------------|----------------------------------|---------------------------|
- |          80 | No error                         | N/A                       |
  |          81 | Timeout                          | N/A                       |
  |          82 | Bad start bit timing             | Observed bit timing in µs |
  |          83 | Bad data bit timing              | Observed bit timing in µs |
@@ -36,7 +35,6 @@ Output messages use the following format (except for the firmware information me
  |          A1 | Bad argument to command          | N/A                       |
  |          A2 | Queue is full                    | N/A                       |
  |          A3 | Bad command                      | N/A                       |
- |          A4 | Buffer overflow                  | N/A                       |
  |          A5 | DALI message queue overflow      | N/A                       |
 
 NOTE The observed bit timing is shifted by 8 bits to the left, and the lower 8 bits code the data bit where the timing
