@@ -27,7 +27,6 @@ Output messages use the following format (except for the firmware information me
  |          84 | Collision detected (loopback)    | N/A                       |
  |          85 | Collision detected (no change)   | N/A                       |
  |          86 | Collision detected (wrong state) | N/A                       |
- |          87 | Settling time violation          | N/A                       |
  |          90 | System is idle                   | N/A                       |
  |          91 | System has failure (bus low)     | N/A                       |
  |          92 | System has recovered             | N/A                       |
