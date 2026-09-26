@@ -10,6 +10,12 @@
 #define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
 #define EXTEND_CORRUPT_PHASE 2
 
+// every second phase has the rise and fall time subtracted from it
+#define DALI_TX_COMPENSATION_US (DALI_TX_RISE_US + DALI_TX_FALL_US)
+// a phase has to outlast the compensation, otherwise the subtraction wraps, and a phase
+// of exactly the compensation leaves a match count that does not advance
+#define DALI_TX_PERIOD_MIN_US (DALI_TX_COMPENSATION_US + 1U)
+
 // see IEC 62386-101-2018 Table 16 - Transmitter bit timing
 // see IEC 62386-101-2022 9.6.2 - Backward frame
 static const struct _dali_timing {
@@ -52,19 +58,32 @@ static int add_signal_phase(uint32_t duration_us, bool change_last_phase)
     if (tx.index_max >= COUNT_ARRAY_SIZE) {
         return -ENOSPC;
     }
+    if (duration_us < DALI_TX_PERIOD_MIN_US) {
+        return -EINVAL;
+    }
+    if (change_last_phase && tx.index_max == 0) {
+        return -EINVAL;
+    }
+    // the parity of the phase decides the sign of the compensation, and it is taken
+    // before change_last_phase rewinds the index
     uint32_t count_now;
     if (tx.index_max & 1) {
-        count_now = duration_us + (DALI_TX_RISE_US + DALI_TX_FALL_US);
+        if (duration_us > (UINT32_MAX - DALI_TX_COMPENSATION_US)) {
+            return -EINVAL;
+        }
+        count_now = duration_us + DALI_TX_COMPENSATION_US;
     } else {
-        count_now = duration_us - (DALI_TX_RISE_US + DALI_TX_FALL_US);
+        count_now = duration_us - DALI_TX_COMPENSATION_US;
     }
-    if (change_last_phase) {
-        tx.index_max--;
+    const uint_fast8_t index = change_last_phase ? (tx.index_max - 1U) : tx.index_max;
+    const uint32_t previous = index ? tx.count[index - 1U] : 0U;
+    // the counts are absolute and the timer is not allowed to roll over, so the whole
+    // sequence has to fit into the counter
+    if (count_now > (UINT32_MAX - previous)) {
+        return -EINVAL;
     }
-    if (tx.index_max) {
-        count_now += tx.count[tx.index_max - 1];
-    }
-    tx.count[tx.index_max++] = count_now;
+    tx.count[index] = count_now + previous;
+    tx.index_max = index + 1U;
     return 0;
 }
 
