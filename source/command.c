@@ -3,7 +3,6 @@
 #include <stdint.h>   // uintXX_t
 #include <stdbool.h>  // for bool
 #include <limits.h>   // UINT_MAX
-#include <errno.h>    // for EAGAIN
 
 #include "FreeRTOS.h" // tasks and queues
 #include "task.h"
@@ -35,6 +34,25 @@
 #define COMMAND_QUEUE_LENGTH (4U)
 #define COMMAND_NOTIFY_PROCESS (1U)
 
+/* Everything a command asks the transmitter to do travels through one queue, so
+   that MAIN carries it out in the order the host sent it. W, N and X used to run
+   straight from this task, at a higher priority than MAIN, and cut into whatever
+   MAIN was transmitting or building. */
+enum command_kind {
+    COMMAND_KIND_FRAME,
+    COMMAND_KIND_SEQUENCE_START,
+    COMMAND_KIND_SEQUENCE_NEXT,
+    COMMAND_KIND_SEQUENCE_EXECUTE,
+};
+
+struct command_item {
+    union {
+        struct dali_tx_frame frame;
+        uint32_t period_us;
+    } argument;
+    enum command_kind kind;
+};
+
 struct _command {
     char* line;
     TaskHandle_t task_handle;
@@ -48,11 +66,6 @@ static void report_status(enum dali_status status)
         .status = status,
     };
     serial_print_frame(frame);
-}
-
-void command_report_cannot_process(void)
-{
-    report_status(DALI_ERROR_CAN_NOT_PROCESS);
 }
 
 static bool is_hex_digit(char character)
@@ -176,11 +189,21 @@ static bool data_illegal(uint64_t data, uint8_t length)
     return (data >= upper_limit);
 }
 
-static void queue_frame(const struct dali_tx_frame frame)
+static void queue_item(const struct command_item item)
 {
-    if (xQueueSendToBack(command.queue_handle, &frame, 0) == errQUEUE_FULL) {
+    if (xQueueSendToBack(command.queue_handle, &item, 0) == errQUEUE_FULL) {
         report_status(DALI_ERROR_QUEUE_FULL);
     }
+}
+
+static void queue_frame(const struct dali_tx_frame frame)
+{
+    queue_item((struct command_item){ .kind = COMMAND_KIND_FRAME, .argument.frame = frame });
+}
+
+static void queue_sequence(enum command_kind kind, uint32_t period_us)
+{
+    queue_item((struct command_item){ .kind = kind, .argument.period_us = period_us });
 }
 
 struct frame_arguments {
@@ -295,9 +318,7 @@ static void next_sequence(char* argument_buffer)
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
-    if (dali_101_sequence_next(period_us) < 0) {
-        report_status(DALI_ERROR_CAN_NOT_PROCESS);
-    }
+    queue_sequence(COMMAND_KIND_SEQUENCE_NEXT, period_us);
 }
 
 static void start_sequence(char* argument_buffer)
@@ -308,10 +329,7 @@ static void start_sequence(char* argument_buffer)
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
-    dali_101_sequence_start();
-    if (dali_101_sequence_next(period_us) < 0) {
-        report_status(DALI_ERROR_CAN_NOT_PROCESS);
-    }
+    queue_sequence(COMMAND_KIND_SEQUENCE_START, period_us);
 }
 
 static void execute_sequence(const char* argument_buffer)
@@ -320,9 +338,7 @@ static void execute_sequence(const char* argument_buffer)
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
-    if (dali_101_sequence_execute() < 0) {
-        report_status(DALI_ERROR_CAN_NOT_PROCESS);
-    }
+    queue_sequence(COMMAND_KIND_SEQUENCE_EXECUTE, 0);
 }
 
 __attribute__((noreturn)) static void command_task(__attribute__((unused)) void* dummy)
@@ -422,10 +438,31 @@ void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
         buffer_index++;
 }
 
-int command_get(struct dali_tx_frame* frame, TickType_t wait)
+void command_execute_pending(void)
 {
-    const BaseType_t rc = xQueueReceive(command.queue_handle, frame, wait);
-    return (rc == pdPASS) ? 0 : -EAGAIN;
+    struct command_item item;
+    if (xQueueReceive(command.queue_handle, &item, 0) != pdPASS) {
+        return;
+    }
+    int rc;
+    switch (item.kind) {
+    case COMMAND_KIND_FRAME:
+        rc = dali_101_send(item.argument.frame);
+        break;
+    case COMMAND_KIND_SEQUENCE_START:
+        dali_101_sequence_start();
+        rc = dali_101_sequence_next(item.argument.period_us);
+        break;
+    case COMMAND_KIND_SEQUENCE_NEXT:
+        rc = dali_101_sequence_next(item.argument.period_us);
+        break;
+    default:
+        rc = dali_101_sequence_execute();
+        break;
+    }
+    if (rc < 0) {
+        report_status(DALI_ERROR_CAN_NOT_PROCESS);
+    }
 }
 
 void command_init(void)
@@ -436,9 +473,9 @@ void command_init(void)
         command_task, "COMMAND", COMMAND_TASK_STACKSIZE, NULL, COMMAND_PRIORITY, task_stack, &task_buffer);
     configASSERT(command.task_handle);
 
-    static uint8_t queue_storage[COMMAND_QUEUE_LENGTH * sizeof(struct dali_tx_frame)];
+    static uint8_t queue_storage[COMMAND_QUEUE_LENGTH * sizeof(struct command_item)];
     static StaticQueue_t queue_buffer;
     command.queue_handle =
-        xQueueCreateStatic(COMMAND_QUEUE_LENGTH, sizeof(struct dali_tx_frame), queue_storage, &queue_buffer);
+        xQueueCreateStatic(COMMAND_QUEUE_LENGTH, sizeof(struct command_item), queue_storage, &queue_buffer);
     configASSERT(command.queue_handle);
 }
