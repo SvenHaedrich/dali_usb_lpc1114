@@ -1,3 +1,4 @@
+// clang-format off
 #include "board.h"
 #include <stdbool.h>    // for bool
 #include <stdint.h>     // for uint32_t
@@ -5,6 +6,7 @@
 #include "dali.h"       // for board_setup_dali_clock
 #include "led.h"        // for board_led_init
 #include "lpc11xx.h"    // for LPC_SYSCON, LPC_SYSCON_TypeDef, NVIC_EnableIRQ
+// clang-format on
 
 #define DALI_TIMER_RATE_HZ (1000000U)
 
@@ -94,5 +96,5 @@ void board_init(void)
 
 void board_system_init(void)
 {
-    board_setup_clocking(); // TODO make at least the system clock init part of the pre-main init
+    board_setup_clocking();
 }

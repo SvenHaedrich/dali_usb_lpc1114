@@ -1,10 +1,20 @@
-#include <stdbool.h>     // for true, false, bool
-#include <stdint.h>      // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
-#include "board/dali.h"  // for board_dali_tx_set, board_dali_tx_timer_next
-#include "dali_101.h"    // for dali_tx_frame, DALI_MAX_DATA_LENGTH, DALI_ER...
+// clang-format off
+#include <errno.h>             // for EINVAL, ENOSPC
+#include <stdbool.h>           // for true, false, bool
+#include <stdint.h>            // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
+#include "board/dali.h"        // for board_dali_tx_set, board_dali_tx_timer_next
+#include "dali_101.h"          // for dali_tx_frame, DALI_MAX_DATA_LENGTH, DALI_ER...
+#include "dali_101_private.h"  // for rx_schedule_transmission, rx_schedule_query
+// clang-format on
 
 #define COUNT_ARRAY_SIZE (2U + DALI_MAX_DATA_LENGTH * 2U + 1U) // start bit, 32 data bits, 1 stop bit
 #define EXTEND_CORRUPT_PHASE 2
+
+// every second phase has the rise and fall time subtracted from it
+#define DALI_TX_COMPENSATION_US (DALI_TX_RISE_US + DALI_TX_FALL_US)
+// a phase has to outlast the compensation, otherwise the subtraction wraps, and a phase
+// of exactly the compensation leaves a match count that does not advance
+#define DALI_TX_PERIOD_MIN_US (DALI_TX_COMPENSATION_US + 1U)
 
 // see IEC 62386-101-2018 Table 16 - Transmitter bit timing
 // see IEC 62386-101-2022 9.6.2 - Backward frame
@@ -27,11 +37,8 @@ struct _tx {
     bool state_now;
     uint8_t repeat;
     bool is_query;
+    bool sequence; // a sequence is defined and not executed yet
 } tx;
-
-extern void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us);
-extern void rx_schedule_transmission(enum dali_frame_type type);
-extern void rx_schedule_query(void);
 
 void tx_reset(void)
 {
@@ -43,89 +50,105 @@ void tx_reset(void)
     tx.index_max = 0;
     tx.state_now = true;
     tx.count[0] = 0;
+    tx.sequence = false;
 }
 
-static bool add_signal_phase(uint32_t duration_us, bool change_last_phase)
+static int add_signal_phase(uint32_t duration_us, bool change_last_phase)
 {
     if (tx.index_max >= COUNT_ARRAY_SIZE) {
-        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-        return true;
+        return -ENOSPC;
     }
+    if (duration_us < DALI_TX_PERIOD_MIN_US) {
+        return -EINVAL;
+    }
+    if (change_last_phase && tx.index_max == 0) {
+        return -EINVAL;
+    }
+    const uint_fast8_t index = change_last_phase ? (tx.index_max - 1U) : tx.index_max;
+    // the parity of the phase this lands on decides the sign of the compensation
     uint32_t count_now;
-    if (tx.index_max & 1) {
-        count_now = duration_us + (DALI_TX_RISE_US + DALI_TX_FALL_US);
+    if (index & 1) {
+        if (duration_us > (UINT32_MAX - DALI_TX_COMPENSATION_US)) {
+            return -EINVAL;
+        }
+        count_now = duration_us + DALI_TX_COMPENSATION_US;
     } else {
-        count_now = duration_us - (DALI_TX_RISE_US + DALI_TX_FALL_US);
+        count_now = duration_us - DALI_TX_COMPENSATION_US;
     }
-    if (change_last_phase) {
-        tx.index_max--;
+    const uint32_t previous = index ? tx.count[index - 1U] : 0U;
+    // the counts are absolute and the timer is not allowed to roll over, so the whole
+    // sequence has to fit into the counter
+    if (count_now > (UINT32_MAX - previous)) {
+        return -EINVAL;
     }
-    if (tx.index_max) {
-        count_now += tx.count[tx.index_max - 1];
-    }
-    tx.count[tx.index_max++] = count_now;
-    return false;
+    tx.count[index] = count_now + previous;
+    tx.index_max = index + 1U;
+    return 0;
 }
 
-static bool add_bit(bool value)
+static int add_bit(bool value)
 {
+    int rc;
     if (tx.state_now == value) {
-        if (add_signal_phase(dali_timing.half_bit_us, false) || add_signal_phase(dali_timing.half_bit_us, false)) {
-            return true;
+        rc = add_signal_phase(dali_timing.half_bit_us, false);
+        if (!rc) {
+            rc = add_signal_phase(dali_timing.half_bit_us, false);
         }
-
     } else {
-        if (add_signal_phase(dali_timing.full_bit_us, true) || add_signal_phase(dali_timing.half_bit_us, false)) {
-            return true;
+        rc = add_signal_phase(dali_timing.full_bit_us, true);
+        if (!rc) {
+            rc = add_signal_phase(dali_timing.half_bit_us, false);
         }
+    }
+    if (rc) {
+        return rc;
     }
     tx.state_now = value;
-    return false;
+    return 0;
 }
 
-static bool add_stop_condition(void)
+static int add_stop_condition(void)
 {
+    int rc;
     if (tx.state_now) {
-        if (add_signal_phase(dali_timing.stop_condition_us, true)) {
-            return true;
-        }
-        tx.index_max--;
+        rc = add_signal_phase(dali_timing.stop_condition_us, true);
     } else {
-        if (add_signal_phase(dali_timing.stop_condition_us, false)) {
-            return true;
-        }
-        tx.index_max--;
+        rc = add_signal_phase(dali_timing.stop_condition_us, false);
     }
-    return false;
+    if (rc) {
+        return rc;
+    }
+    tx.index_max--;
+    return 0;
 }
 
-static bool calculate_counts(const struct dali_tx_frame frame)
+static int calculate_counts(const struct dali_tx_frame frame)
 {
     if (frame.length > DALI_MAX_DATA_LENGTH) {
-        queue_error_frame(DALI_ERROR_BAD_ARGUMENT, 0, 0);
-        return true;
+        return -EINVAL;
     }
 
-    if (add_bit(true)) {
-        return true;
+    int rc = add_bit(true);
+    if (rc) {
+        return rc;
     }
 
     if (frame.type == DALI_FRAME_CORRUPT) {
         for (int_fast8_t i = 0; i < 16; i++) {
             if (i == EXTEND_CORRUPT_PHASE) {
-                if (add_signal_phase(dali_timing.corrupt_bit_us, false)) {
-                    return true;
-                }
+                rc = add_signal_phase(dali_timing.corrupt_bit_us, false);
             } else {
-                if (add_signal_phase(dali_timing.half_bit_us, false)) {
-                    return true;
-                }
+                rc = add_signal_phase(dali_timing.half_bit_us, false);
+            }
+            if (rc) {
+                return rc;
             }
         }
     } else {
         for (int_fast8_t i = (frame.length - 1); i >= 0; i--) {
-            if (add_bit(frame.data & (1 << i))) {
-                return true;
+            rc = add_bit(frame.data & (1 << i));
+            if (rc) {
+                return rc;
             }
         }
     }
@@ -173,14 +196,15 @@ bool dali_tx_repeat(void)
     return false;
 }
 
-void dali_101_send(const struct dali_tx_frame frame)
+int dali_101_send(const struct dali_tx_frame frame)
 {
     if (frame.type == DALI_FRAME_NONE) {
-        return;
+        return -EINVAL;
     }
     tx_reset();
-    if (calculate_counts(frame)) {
-        return;
+    const int rc = calculate_counts(frame);
+    if (rc) {
+        return rc;
     }
     if (frame.type == DALI_FRAME_QUERY_1 || frame.type == DALI_FRAME_QUERY_2 || frame.type == DALI_FRAME_QUERY_3 ||
         frame.type == DALI_FRAME_QUERY_4 || frame.type == DALI_FRAME_QUERY_5) {
@@ -188,28 +212,38 @@ void dali_101_send(const struct dali_tx_frame frame)
     }
     tx.repeat = frame.repeat;
     rx_schedule_transmission(frame.type);
-    return;
+    return 0;
 }
 
 void dali_101_sequence_start(void)
 {
     tx_reset();
     tx.repeat = 0;
+    tx.sequence = true;
 }
 
-void dali_101_sequence_next(uint32_t period_us)
+int dali_101_sequence_next(uint32_t period_us)
 {
-    add_signal_phase(period_us, false);
-}
-
-void dali_101_sequence_execute(void)
-{
-    if (tx.index_next >= tx.index_max || tx.index_max == 0) {
-        queue_error_frame(DALI_ERROR_CAN_NOT_PROCESS, 0, 0);
-        return;
+    if (!tx.sequence) {
+        return -EINVAL;
     }
+    const int rc = add_signal_phase(period_us, false);
+    if (rc) {
+        tx.sequence = false;
+        return rc;
+    }
+    return 0;
+}
+
+int dali_101_sequence_execute(void)
+{
+    if (!tx.sequence || tx.index_next >= tx.index_max || tx.index_max == 0) {
+        return -EINVAL;
+    }
+    tx.sequence = false;
     tx.index_max--;
     dali_tx_start_send();
+    return 0;
 }
 
 void dali_tx_init(void)

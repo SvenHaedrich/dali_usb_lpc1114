@@ -1,7 +1,7 @@
-import pytest
 import logging
 import time
 
+import pytest
 from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
@@ -19,10 +19,10 @@ def set_up_and_send_sequence(serial, bit_timings):
             first_cmd = False
         else:
             cmd = f"N{period:x}\r"
-        serial.port.write(cmd.encode("utf-8"))
+        serial.port.write(cmd.encode("ascii"))
         time.sleep(time_for_command_processing)
     # here we go
-    serial.port.write("X\r".encode("utf-8"))
+    serial.port.write("X\r".encode("ascii"))
 
 
 def read_result_and_assert(serial, length, data):
@@ -91,11 +91,11 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
     short_time = 0.05
     # define sequence
     cmd = f"W{length_us:x}\r"
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     time.sleep(short_time)
     # here we go
     cmd = "X\r"
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     # read result
     result = dali_serial.get(timeout_time_sec)
     assert result.status == expected_code
@@ -112,11 +112,11 @@ def test_startbit_lengths(dali_serial, length_us, expected_code):
 def test_system_failures(dali_serial, length_us):
     # set-up sequence
     cmd = f"W{length_us:x}\r"
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     time.sleep(time_for_command_processing)
     # here we go
     cmd = "X\r"
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     # read failure message
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.FAILURE
@@ -140,9 +140,9 @@ def test_system_failures(dali_serial, length_us):
 def test_backframe_timing(dali_serial):
     forward_frame = "S1 10 FF00\r"
     backward_frame = "YFF\r"
-    dali_serial.port.write(forward_frame.encode("utf-8"))
+    dali_serial.port.write(forward_frame.encode("ascii"))
     time.sleep(time_for_command_processing)
-    dali_serial.port.write(backward_frame.encode("utf-8"))
+    dali_serial.port.write(backward_frame.encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     timestamp_1 = result.timestamp
@@ -160,20 +160,20 @@ def test_kill_sequence(dali_serial):
     # set up the fatal sequence
     length_norm_us = 420
     length_abnorm_us = 1000
-    dali_serial.port.write(f"W{length_norm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"W{length_norm_us:x}\r".encode("ascii"))
     time.sleep(time_for_command_processing)
-    dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"N{length_norm_us:x}\r".encode("ascii"))
     time.sleep(time_for_command_processing)
-    dali_serial.port.write(f"N{length_abnorm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"N{length_abnorm_us:x}\r".encode("ascii"))
     time.sleep(time_for_command_processing)
-    dali_serial.port.write(f"N{length_norm_us:x}\r".encode("utf-8"))
+    dali_serial.port.write(f"N{length_norm_us:x}\r".encode("ascii"))
     time.sleep(time_for_command_processing)
-    dali_serial.port.write("X\r".encode("utf-8"))
+    dali_serial.port.write("X\r".encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.TIMING
     time.sleep(0.05)
     # check if interface is still alive
-    dali_serial.port.write("YFF\r".encode("utf-8"))
+    dali_serial.port.write("YFF\r".encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     assert result.data == 0xFF
@@ -181,33 +181,32 @@ def test_kill_sequence(dali_serial):
 
 def test_3_11_receiver_bit_timing(dali_serial):
     length_norm_single_us = 416
-    length_norm_double_us = 833
     length_table = [334, 375, 416, 458, 500]
     for m in range(5):
         low_time = length_table[m]
         for n in range(5):
             high_time = length_table[n]
-            dali_serial.port.write(f"W{length_norm_single_us:x}\r".encode("utf-8"))
+            dali_serial.port.write(f"W{length_norm_single_us:x}\r".encode("ascii"))
             time.sleep(time_for_command_processing)
-            dali_serial.port.write(f"N{length_norm_single_us:x}\r".encode("utf-8"))
-            time.sleep(time_for_command_processing)
-            for _ in range(3):
-                dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
-                time.sleep(time_for_command_processing)
-                dali_serial.port.write(f"N{high_time:x}\r".encode("utf-8"))
-                time.sleep(time_for_command_processing)
-            dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
-            time.sleep(time_for_command_processing)
-            dali_serial.port.write(f"N{2*high_time:x}\r".encode("utf-8"))
+            dali_serial.port.write(f"N{length_norm_single_us:x}\r".encode("ascii"))
             time.sleep(time_for_command_processing)
             for _ in range(3):
-                dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
+                dali_serial.port.write(f"N{low_time:x}\r".encode("ascii"))
                 time.sleep(time_for_command_processing)
-                dali_serial.port.write(f"N{high_time:x}\r".encode("utf-8"))
+                dali_serial.port.write(f"N{high_time:x}\r".encode("ascii"))
                 time.sleep(time_for_command_processing)
-            dali_serial.port.write(f"N{low_time:x}\r".encode("utf-8"))
+            dali_serial.port.write(f"N{low_time:x}\r".encode("ascii"))
             time.sleep(time_for_command_processing)
-            dali_serial.port.write("X\r".encode("utf-8"))
+            dali_serial.port.write(f"N{2 * high_time:x}\r".encode("ascii"))
+            time.sleep(time_for_command_processing)
+            for _ in range(3):
+                dali_serial.port.write(f"N{low_time:x}\r".encode("ascii"))
+                time.sleep(time_for_command_processing)
+                dali_serial.port.write(f"N{high_time:x}\r".encode("ascii"))
+                time.sleep(time_for_command_processing)
+            dali_serial.port.write(f"N{low_time:x}\r".encode("ascii"))
+            time.sleep(time_for_command_processing)
+            dali_serial.port.write("X\r".encode("ascii"))
             result = dali_serial.get(timeout_time_sec)
             logger.debug(result.message)
             assert result.status == DaliStatus.LOOPBACK

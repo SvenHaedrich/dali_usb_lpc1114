@@ -1,4 +1,3 @@
-import pytest
 import logging
 
 from dali_interface.dali_interface import DaliFrame, DaliStatus

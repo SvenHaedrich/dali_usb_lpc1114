@@ -1,5 +1,7 @@
 #pragma once
+// clang-format off
 #include <stdbool.h>  // for bool
+// clang-format on
 
 #define DALI_TX_Pin GPIO_PIN_8
 #define DALI_TX_GPIO_Port GPIOA
