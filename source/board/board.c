@@ -96,5 +96,5 @@ void board_init(void)
 
 void board_system_init(void)
 {
-    board_setup_clocking(); // TODO make at least the system clock init part of the pre-main init
+    board_setup_clocking();
 }
