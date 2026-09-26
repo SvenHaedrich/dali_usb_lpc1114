@@ -110,6 +110,18 @@ int dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever);
 bool dali_101_tx_is_idle(void);
 
 /**
+ * @brief Check if the driver can take the next command
+ *
+ * dali_101_send() only schedules a frame; the transmitter stays idle until the
+ * settling time has passed. A caller that hands over commands one at a time has
+ * to wait for this, not for dali_101_tx_is_idle().
+ *
+ * @return `true` - nothing is being transmitted and nothing is scheduled
+ * @return `false` - a transmission is active or waiting for its settling time
+ */
+bool dali_101_is_ready_for_command(void);
+
+/**
  * @brief Start a new bit sequence, discard old sequence information
  *
  */

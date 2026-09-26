@@ -137,6 +137,52 @@ def test_sequence_execute_without_definition(dali_serial):
     assert result.length == 0xA0
 
 
+def test_a_frame_in_flight_survives_a_sequence_command(dali_serial):
+    """`W` must not cut a transmission in half.
+
+    dali_101_sequence_start() calls tx_reset(), which drives the bus idle and
+    stops the timer. Run straight from the COMMAND task at priority 3 it
+    preempts MAIN at priority 1 and truncates whatever is on the wire.
+    """
+    dali_serial.flush_queue()
+    dali_serial.port.write("S1 20 12345678\r".encode("ascii"))
+    time.sleep(0.010)  # a 32 bit frame occupies the bus for about 30 ms
+    dali_serial.port.write("W1a1\r".encode("ascii"))
+
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 0x20
+    assert result.data == 0x12345678
+
+    # discard whatever sequence the W left behind, and prove the bus still works
+    dali_serial.flush_queue()
+    dali_serial.port.write("S1 10 5A5A\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.data == 0x5A5A
+
+
+def test_a_sequence_does_not_overtake_a_queued_frame(dali_serial):
+    """`W`/`N`/`X` run in the COMMAND task while frames wait for MAIN.
+
+    The sequence therefore reaches the transmitter first, so the frame the host
+    asked for earlier is sent second, or trampled while it is being built.
+    """
+    dali_serial.flush_queue()
+    for command in ("S1 10 1000", "W1a1", "N1a1", "X"):
+        dali_serial.port.write(f"{command}\r".encode("ascii"))
+        time.sleep(time_for_command_processing)
+
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 0x10
+    assert result.data == 0x1000
+
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 0x00
+
+
 def test_sequence_next_without_start(dali_serial):
     """`N` without a preceding `W` has no sequence to add to."""
     dali_serial.port.write("N64\r".encode("ascii"))

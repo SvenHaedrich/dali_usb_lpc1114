@@ -314,6 +314,11 @@ static void process_pending_frame(void)
     rx.status = INTER_FRAME_IDLE;
 }
 
+bool dali_101_is_ready_for_command(void)
+{
+    return dali_101_tx_is_idle() && !rx.transmission_is_waiting;
+}
+
 void rx_schedule_transmission(enum dali_frame_type type)
 {
     rx.transmission_frame_type = type;

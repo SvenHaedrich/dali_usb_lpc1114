@@ -16,7 +16,7 @@
 #include "board/led.h"             // for board_flash, LED_DALI
 #include "dali_101_lpc/dali_101.h" // for dali_101_get, dali_101_init, dali...
 #include "portmacro.h"             // for StackType_t
-#include "command.h"               // for command_get, command_init, comman...
+#include "command.h"               // for command_execute_pending, command_...
 #include "serial.h"                // for serial_init, serial_print_frame, s...
 #include "task.h"                  // for vTaskStartScheduler, xTaskCreateS...
 // clang-format on
@@ -27,18 +27,13 @@
 __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* dummy)
 {
     struct dali_rx_frame rx_frame;
-    struct dali_tx_frame tx_frame;
     while (true) {
         if (dali_101_get(&rx_frame, 0, false) == 0) {
             board_flash(LED_DALI);
             serial_print_frame(rx_frame);
         }
-        if (dali_101_tx_is_idle()) {
-            if (command_get(&tx_frame, 0) == 0) {
-                if (dali_101_send(tx_frame) < 0) {
-                    command_report_cannot_process();
-                }
-            }
+        if (dali_101_is_ready_for_command()) {
+            command_execute_pending();
         }
     }
 }
