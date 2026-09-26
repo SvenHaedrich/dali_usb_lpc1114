@@ -163,6 +163,92 @@ def test_rejected_sequence_does_not_stall_the_transmitter(dali_serial):
 
 
 @pytest.mark.parametrize(
+    "period",
+    [
+        "1",  # underflows the rise and fall compensation
+        "17",  # 23 us, the largest value that still underflows
+        "18",  # 24 us, exactly the compensation, leaves a match count that never advances
+    ],
+)
+def test_sequence_period_too_short_is_refused(dali_serial, period):
+    """A period the transmitter cannot express must be refused, not executed.
+
+    `add_signal_phase()` subtracts the rise and fall time from every even phase
+    without checking, so anything at or below that wrapped to a match about 2^32
+    microseconds away. The transmit pin is asserted before the first match, so the
+    bus stayed held until the adapter was reflashed - long enough to trip the
+    failure detection of every device on the segment.
+    """
+    dali_serial.port.write(f"W{period}\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+    # the sequence was never started, so there is nothing to execute
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+    # and the bus is still free
+    dali_serial.port.write("S1 10 5A5A\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.data == 0x5A5A
+
+
+def test_sequence_longer_than_the_counter_is_refused(dali_serial):
+    """The counts are absolute and the timer does not roll over.
+
+    A single period is only bounded by the counter, so each of these fits on its
+    own; it is the running total that does not. The phase that would take the
+    sequence past the end of the counter has to be refused.
+    """
+    dali_serial.port.write("W7fffffff\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    dali_serial.port.write("N7fffffff\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    dali_serial.flush_queue()
+
+    dali_serial.port.write("N7fffffff\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+    # the sequence went with it, so there is nothing left to execute
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+
+def test_sequence_next_out_of_range_invalidates_the_sequence(dali_serial):
+    """A bad `N` must take the whole sequence with it, not just report itself."""
+    dali_serial.port.write("W1a1\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    dali_serial.port.write("N1\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+
+def test_shortest_usable_sequence_period_is_accepted(dali_serial):
+    """One microsecond above the compensation still has to be sent."""
+    dali_serial.port.write("W19\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    dali_serial.port.write("N19\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.length != 0xA0
+
+
+@pytest.mark.parametrize(
     "bits,data",
     [(4, 0xF), (8, 0xFF), (0x10, 0xFFFF), (0x18, 0xFFFFFF), (0x20, 0xFFFFFFFF)],
 )

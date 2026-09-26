@@ -120,7 +120,7 @@ void dali_101_sequence_start(void);
  *
  * @param period_us duration for the next period, given in micro seconds
  * @return 0 - period added
- * @return -EINVAL - no sequence was started
+ * @return -EINVAL - no sequence was started, or the period is out of range
  * @return -ENOSPC - the sequence does not fit
  */
 int dali_101_sequence_next(uint32_t period_us);
