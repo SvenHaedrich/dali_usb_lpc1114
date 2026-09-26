@@ -1,39 +1,19 @@
 // clang-format off
-#include <stdio.h>
-#include <stdlib.h>   // strtoul
+#include <stdio.h>    // for puts
 #include <stdint.h>   // uintXX_t
-#include <stdbool.h>  // for bool
-#include <limits.h>   // UINT_MAX
-#include <errno.h>    // for EAGAIN
 
-#include "FreeRTOS.h" // tasks and queues
-#include "task.h"
-#include "queue.h"
+#include "FreeRTOS.h" // for pdFALSE
+#include "portmacro.h" // for BaseType_t, portYIELD_FROM_ISR
 
 #include "lpc11xx.h" // UART registers
 #include "bitfields.h"
 
 #include "dali_101_lpc/dali_101.h"
-#include "board/led.h"
 #include "board/board.h" // irq priorities
 #include "version.h"
+#include "command.h"
 #include "serial.h"
 // clang-format on
-
-#define SERIAL_BUFFER_SIZE 20
-#define SERIAL_IDX_CMD 0
-#define SERIAL_IDX_ARG 1
-#define SERIAL_CMD_QUERY 'Q'
-#define SERIAL_CMD_SEND 'S'
-#define SERIAL_CMD_REPEAT 'R'
-#define SERIAL_CMD_BACKFRAME 'Y'
-#define SERIAL_CMD_HELP '?'
-#define SERIAL_CMD_START_SEQ 'W'
-#define SERIAL_CMD_NEXT_SEQ 'N'
-#define SERIAL_CMD_EXECUTE_SEQ 'X'
-#define SERIAL_CMD_CORRUPT 'I'
-#define SERIAL_CHAR_TWICE '+'
-#define SERIAL_CHAR_EOL 0x0d
 
 // the version is known at compile time, so the banner needs no formatting
 #define SERIAL_STRINGIFY_(x) #x
@@ -44,11 +24,6 @@
 
 // '{' + 8 timestamp + separator + 2 length + ' ' + 8 data + '}' + '\r' + '\0'
 #define SERIAL_MESSAGE_SIZE (24U)
-
-#define SERIAL_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
-#define SERIAL_PRIORITY (tskIDLE_PRIORITY + 3U)
-#define SERIAL_QUEUE_LENGTH (4U)
-#define SERIAL_NOTIFY_PROCESSS (1U)
 
 #define SERIAL_BAUDRATE_500000
 
@@ -64,12 +39,6 @@
 #define SERIAL_DLM (0U)
 #define SERIAL_DLL (4U)
 #endif
-
-struct _serial {
-    char* cmd_buffer;
-    TaskHandle_t task_handle;
-    QueueHandle_t queue_handle;
-} serial = { 0 };
 
 void serial_print_head(void)
 {
@@ -103,364 +72,18 @@ void serial_print_frame(const struct dali_rx_frame frame)
     puts(message);
 }
 
-static void print_parameter_error(void)
-{
-    const struct dali_rx_frame frame = {
-        .timestamp = xTaskGetTickCount(),
-        .status = DALI_ERROR_BAD_COMMAND,
-    };
-    serial_print_frame(frame);
-}
-
-void serial_print_cannot_process(void)
-{
-    const struct dali_rx_frame frame = {
-        .timestamp = xTaskGetTickCount(),
-        .status = DALI_ERROR_CAN_NOT_PROCESS,
-    };
-    serial_print_frame(frame);
-}
-
-static void print_queue_full_error(void)
-{
-    const struct dali_rx_frame frame = {
-        .timestamp = xTaskGetTickCount(),
-        .status = DALI_ERROR_QUEUE_FULL,
-    };
-    serial_print_frame(frame);
-}
-
-static bool read_u64_hex_argument(char** position, uint64_t* value)
-{
-    const char* start = *position;
-    *value = strtoull(start, position, 16);
-    return (*position != start);
-}
-
-static bool read_u8_hex_argument(char** position, uint8_t* value)
-{
-    uint64_t wide_value;
-    if (!read_u64_hex_argument(position, &wide_value) || wide_value > UINT8_MAX) {
-        return false;
-    }
-    *value = (uint8_t)wide_value;
-    return true;
-}
-
-static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
-{
-    if (length > DALI_MAX_DATA_LENGTH) {
-        return true;
-    }
-    if (priority < 1) {
-        return true;
-    }
-    if (priority > 6) {
-        return true;
-    }
-    return false;
-}
-
-static enum dali_frame_type get_forward_type(uint8_t priority)
-{
-    switch (priority) {
-    case 1:
-        return DALI_FRAME_FORWARD_1;
-    case 2:
-        return DALI_FRAME_FORWARD_2;
-    case 3:
-        return DALI_FRAME_FORWARD_3;
-    case 4:
-        return DALI_FRAME_FORWARD_4;
-    case 5:
-        return DALI_FRAME_FORWARD_5;
-    case 6:
-        return DALI_FRAME_BACK_TO_BACK;
-    default:
-        return DALI_FRAME_NONE;
-    }
-}
-
-static enum dali_frame_type get_query_type(uint8_t priority)
-{
-    switch (priority) {
-    case 1:
-        return DALI_FRAME_QUERY_1;
-    case 2:
-        return DALI_FRAME_QUERY_2;
-    case 3:
-        return DALI_FRAME_QUERY_3;
-    case 4:
-        return DALI_FRAME_QUERY_4;
-    case 5:
-        return DALI_FRAME_QUERY_5;
-    default:
-        return DALI_FRAME_NONE;
-    }
-}
-
-static bool data_illegal(uint64_t data, uint8_t length)
-{
-    if (length > DALI_MAX_DATA_LENGTH) {
-        return true;
-    }
-    const uint64_t upper_limit = (uint64_t)1 << length;
-    return (data >= upper_limit);
-}
-
-static void queue_frame(const struct dali_tx_frame frame)
-{
-    if (xQueueSendToBack(serial.queue_handle, &frame, 0) == errQUEUE_FULL) {
-        print_queue_full_error();
-    }
-}
-
-static void query_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
-    uint8_t priority;
-    uint8_t length;
-    uint64_t data;
-
-    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &length)) {
-        print_parameter_error();
-        return;
-    }
-    const char twice_indicator = *position;
-    if (twice_indicator == '\000') {
-        print_parameter_error();
-        return;
-    }
-    position++;
-    if (!read_u64_hex_argument(&position, &data)) {
-        print_parameter_error();
-        return;
-    }
-    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
-        print_parameter_error();
-        return;
-    }
-    const struct dali_tx_frame frame = { .type = get_query_type(priority),
-                                         .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
-                                         .length = length,
-                                         .data = (uint32_t)data };
-    queue_frame(frame);
-}
-
-static void send_forward_frame_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
-    uint8_t priority;
-    uint8_t length;
-    uint64_t data;
-
-    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &length)) {
-        print_parameter_error();
-        return;
-    }
-    const char twice_indicator = *position;
-    if (twice_indicator == '\000') {
-        print_parameter_error();
-        return;
-    }
-    position++;
-    if (!read_u64_hex_argument(&position, &data)) {
-        print_parameter_error();
-        return;
-    }
-    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
-        print_parameter_error();
-        return;
-    }
-    const struct dali_tx_frame frame = { .type = get_forward_type(priority),
-                                         .repeat = (twice_indicator == SERIAL_CHAR_TWICE) ? 1 : 0,
-                                         .length = length,
-                                         .data = (uint32_t)data };
-    queue_frame(frame);
-}
-
-static void send_backframe_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
-    uint8_t data;
-
-    if (!read_u8_hex_argument(&position, &data)) {
-        print_parameter_error();
-        return;
-    }
-    const struct dali_tx_frame frame = { .type = DALI_FRAME_BACKWARD, .repeat = 0, .length = 8, .data = data };
-    queue_frame(frame);
-}
-
-static void send_corrupt_frame_command(void)
-{
-    const struct dali_tx_frame frame = { .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0 };
-    queue_frame(frame);
-}
-
-static void send_repeated_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
-    uint8_t priority;
-    uint8_t repeat;
-    uint8_t length;
-    uint64_t data;
-
-    if (!read_u8_hex_argument(&position, &priority) || !read_u8_hex_argument(&position, &repeat) ||
-        !read_u8_hex_argument(&position, &length) || !read_u64_hex_argument(&position, &data)) {
-        print_parameter_error();
-        return;
-    }
-    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
-        print_parameter_error();
-        return;
-    }
-    const struct dali_tx_frame frame = {
-        .type = get_forward_type(priority), .repeat = repeat, .length = length, .data = (uint32_t)data
-    };
-    queue_frame(frame);
-}
-
-static void next_sequence(char* argument_buffer)
-{
-    char* end_of_read;
-    const uint32_t period_us = strtoul(argument_buffer, &end_of_read, 16);
-    if (period_us == 0) {
-        print_parameter_error();
-        return;
-    }
-    if (dali_101_sequence_next(period_us) < 0) {
-        serial_print_cannot_process();
-    }
-}
-
-static void start_sequence(char* argument_buffer)
-{
-    char* end_of_read;
-    const uint32_t period_us = strtoul(argument_buffer, &end_of_read, 16);
-    if (period_us == 0) {
-        print_parameter_error();
-        return;
-    }
-    dali_101_sequence_start();
-    if (dali_101_sequence_next(period_us) < 0) {
-        serial_print_cannot_process();
-    }
-}
-
-__attribute__((noreturn)) static void serial_task(__attribute__((unused)) void* dummy)
-{
-    while (true) {
-        uint32_t notifications;
-        const BaseType_t result = xTaskNotifyWait(pdFALSE, UINT_MAX, &notifications, portMAX_DELAY);
-        if (result == pdPASS) {
-            switch (serial.cmd_buffer[SERIAL_IDX_CMD]) {
-            case SERIAL_CMD_QUERY:
-                board_flash(LED_SERIAL);
-                query_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
-                break;
-            case SERIAL_CMD_SEND:
-                board_flash(LED_SERIAL);
-                send_forward_frame_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
-                break;
-            case SERIAL_CMD_BACKFRAME:
-                board_flash(LED_SERIAL);
-                send_backframe_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
-                break;
-            case SERIAL_CMD_CORRUPT:
-                board_flash(LED_SERIAL);
-                send_corrupt_frame_command();
-                break;
-            case SERIAL_CMD_REPEAT:
-                board_flash(LED_SERIAL);
-                send_repeated_command(&serial.cmd_buffer[SERIAL_IDX_ARG]);
-                break;
-            case SERIAL_CMD_HELP:
-                board_flash(LED_SERIAL);
-                serial_print_head();
-                break;
-            case SERIAL_CMD_START_SEQ:
-                board_flash(LED_SERIAL);
-                start_sequence(&serial.cmd_buffer[SERIAL_IDX_ARG]);
-                break;
-            case SERIAL_CMD_NEXT_SEQ:
-                board_flash(LED_SERIAL);
-                next_sequence(&serial.cmd_buffer[SERIAL_IDX_ARG]);
-                break;
-            case SERIAL_CMD_EXECUTE_SEQ:
-                board_flash(LED_SERIAL);
-                if (dali_101_sequence_execute() < 0) {
-                    serial_print_cannot_process();
-                }
-                break;
-            }
-        }
-    }
-}
-
-static char* other_buffer(char* active, char* one, char* two)
-{
-    if (active == one) {
-        return two;
-    }
-    return one;
-}
-
 void UART_IRQHandler(void)
 {
-    static char rx_buffer_1[SERIAL_BUFFER_SIZE];
-    static char rx_buffer_2[SERIAL_BUFFER_SIZE];
-    static char* active_buffer = rx_buffer_1;
-    static uint8_t buffer_index;
-
     const uint8_t IIR_value = LPC_UART->IIR;
     const uint8_t IIR_initd = (IIR_value >> 1) & 7;
 
     if (IIR_initd == 2) {
         BaseType_t higher_priority_woken = pdFALSE;
-        while (LPC_UART->LSR & 1) {
-            const char c = LPC_UART->RBR;
-            switch (c) {
-            case SERIAL_CMD_SEND:
-            case SERIAL_CMD_QUERY:
-            case SERIAL_CMD_REPEAT:
-            case SERIAL_CMD_NEXT_SEQ:
-            case SERIAL_CMD_START_SEQ:
-            case SERIAL_CMD_BACKFRAME:
-            case SERIAL_CMD_EXECUTE_SEQ:
-            case SERIAL_CMD_CORRUPT:
-                buffer_index = 0;
-                active_buffer[0] = c;
-                break;
-            case SERIAL_CMD_HELP:
-                active_buffer[0] = c;
-                active_buffer[1] = '\000';
-                serial.cmd_buffer = active_buffer;
-                xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
-                active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
-                buffer_index = 0;
-                break;
-            case SERIAL_CHAR_EOL:
-                active_buffer[buffer_index] = '\000';
-                serial.cmd_buffer = active_buffer;
-                xTaskNotifyFromISR(serial.task_handle, SERIAL_NOTIFY_PROCESSS, eSetBits, &higher_priority_woken);
-                active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
-                buffer_index = 0;
-                break;
-            default:
-                active_buffer[buffer_index] = c;
-            }
-            if (buffer_index < (SERIAL_BUFFER_SIZE - 1))
-                buffer_index++;
+        while (LPC_UART->LSR & U0LSR_RDR) {
+            command_receive_from_isr(LPC_UART->RBR, &higher_priority_woken);
         }
         portYIELD_FROM_ISR(higher_priority_woken);
     }
-}
-
-int serial_get(struct dali_tx_frame* frame, TickType_t wait)
-{
-    const BaseType_t rc = xQueueReceive(serial.queue_handle, frame, wait);
-    return (rc == pdPASS) ? 0 : -EAGAIN;
 }
 
 static void serial_initialize_uart_interrupt(void)
@@ -486,18 +109,6 @@ static void serial_uart_init(void)
 
 void serial_init(void)
 {
-    static StaticTask_t task_buffer;
-    static StackType_t task_stack[SERIAL_TASK_STACKSIZE];
-    serial.task_handle = xTaskCreateStatic(
-        serial_task, "SERIAL", SERIAL_TASK_STACKSIZE, NULL, SERIAL_PRIORITY, task_stack, &task_buffer);
-    configASSERT(serial.task_handle);
-
-    static uint8_t queue_storage[SERIAL_QUEUE_LENGTH * sizeof(struct dali_tx_frame)];
-    static StaticQueue_t queue_buffer;
-    serial.queue_handle =
-        xQueueCreateStatic(SERIAL_QUEUE_LENGTH, sizeof(struct dali_tx_frame), queue_storage, &queue_buffer);
-    configASSERT(serial.queue_handle);
-
     serial_uart_init();
     serial_initialize_uart_interrupt();
 }

@@ -65,6 +65,7 @@ add_subdirectory(source/system)
 list(APPEND SOURCE_FILES
         source/main.c
         source/serial.c
+        source/command.c
         source/freertos.c
         thirdparty/FreeRTOS-Kernel/portable/GCC/ARM_CM0/portasm.c
         )

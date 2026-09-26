@@ -16,7 +16,8 @@
 #include "board/led.h"             // for board_flash, LED_DALI
 #include "dali_101_lpc/dali_101.h" // for dali_101_get, dali_101_init, dali...
 #include "portmacro.h"             // for StackType_t
-#include "serial.h"                // for serial_get, serial_init, serial_p...
+#include "command.h"               // for command_get, command_init, comman...
+#include "serial.h"                // for serial_init, serial_print_frame, s...
 #include "task.h"                  // for vTaskStartScheduler, xTaskCreateS...
 // clang-format on
 
@@ -33,9 +34,9 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
             serial_print_frame(rx_frame);
         }
         if (dali_101_tx_is_idle()) {
-            if (serial_get(&tx_frame, 0) == 0) {
+            if (command_get(&tx_frame, 0) == 0) {
                 if (dali_101_send(tx_frame) < 0) {
-                    serial_print_cannot_process();
+                    command_report_cannot_process();
                 }
             }
         }
@@ -46,6 +47,7 @@ int main(void)
 {
     board_init();
     dali_101_init();
+    command_init();
     serial_init();
     serial_print_head();
 
