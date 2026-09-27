@@ -240,6 +240,7 @@ int dali_101_sequence_next(uint32_t period_us)
     return 0;
 }
 
+// accepted here, started by rx_schedule_transmission() once the bus allows it
 int dali_101_sequence_execute(void)
 {
     if (!tx.sequence || tx.index_next >= tx.index_max || tx.index_max == 0) {
@@ -247,7 +248,7 @@ int dali_101_sequence_execute(void)
     }
     tx.sequence = false;
     tx.index_max--;
-    dali_tx_start_send();
+    rx_schedule_transmission(DALI_FRAME_BACK_TO_BACK);
     return 0;
 }
 

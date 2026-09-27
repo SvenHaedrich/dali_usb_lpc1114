@@ -437,9 +437,15 @@ void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
 void command_execute_pending(void)
 {
     struct command_item item;
-    if (xQueueReceive(command.queue_handle, &item, 0) != pdPASS) {
+    if (xQueuePeek(command.queue_handle, &item, 0) != pdPASS) {
         return;
     }
+    // W resets the transmitter at once, so unlike a frame it cannot schedule
+    // itself - hold it, and N and X behind it, until the bus is closed
+    if (item.kind == COMMAND_KIND_SEQUENCE_START && !dali_101_is_bus_free()) {
+        return;
+    }
+    (void)xQueueReceive(command.queue_handle, &item, 0);
     int rc = 0; // every kind below assigns it, but the switch names no default
     switch (item.kind) {
     case COMMAND_KIND_FRAME:
