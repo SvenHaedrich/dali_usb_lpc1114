@@ -1,6 +1,5 @@
 // clang-format off
 #include "dali.h"
-#include <stdbool.h>               // for bool, false
 #include "bitfields.h"             // for TMR32B0MCR_MR3I, IOCON_R_PIO0_11_...
 #include "board.h"                 // for BOARD_AHB_CLOCK
 #include "dali_101_lpc/dali_101.h" // for dali_rx_irq_capture_callback, dal...

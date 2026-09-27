@@ -1,6 +1,8 @@
 #pragma once
-#include <stdbool.h>
-#include <stdint.h>
+// clang-format off
+#include <stdbool.h>           // for false, true, bool
+#include <stdint.h>            // for uint32_t, uint8_t
+// clang-format on
 
 #define DALI_101_MAJOR_VERSION (4U)
 #define DALI_101_MINOR_VERSION (1U)

@@ -1,6 +1,5 @@
 // clang-format off
 #include "board.h"
-#include <stdbool.h>    // for bool
 #include <stdint.h>     // for uint32_t
 #include "bitfields.h"  // for PDRUNCFG_SYSPLL_PD, PDRUNCFG_SYSOSC_PD, SYSAH...
 #include "dali.h"       // for board_setup_dali_clock

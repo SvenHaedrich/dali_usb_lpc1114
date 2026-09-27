@@ -1,7 +1,5 @@
 // clang-format off
 #include <errno.h>             // for EINVAL, ENOSPC
-#include <stdbool.h>           // for true, false, bool
-#include <stdint.h>            // for uint32_t, int_fast8_t, uint8_t, uint_fast8_t
 #include "board/dali.h"        // for board_dali_tx_set, board_dali_tx_timer_next
 #include "dali_101.h"          // for dali_tx_frame, DALI_MAX_DATA_LENGTH, DALI_ER...
 #include "dali_101_private.h"  // for rx_schedule_transmission, rx_schedule_query
