@@ -67,6 +67,8 @@ def test_version():
         ("S1 10 1000+\r", DaliStatus.INTERFACE, 0xA3),
         ("S1 10 -1000\r", DaliStatus.INTERFACE, 0xA3),
         ("Q1 10x1000\r", DaliStatus.INTERFACE, 0xA3),
+        # doc/commands.md gives Q a priority of 1..5, there is no back to back query
+        ("Q6 10 FF00\r", DaliStatus.INTERFACE, 0xA3),
         # a query is never sent twice - send the forward frame explicitly instead
         ("Q1 10+FF00\r", DaliStatus.INTERFACE, 0xA3),
         ("Y10junk\r", DaliStatus.INTERFACE, 0xA3),
