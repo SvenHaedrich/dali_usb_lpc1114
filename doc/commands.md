@@ -11,14 +11,17 @@ Stop bit: 1
 
 Send a DALI forward frame and report the systems reaction. A backframe message is allways generated.
 
-    'Q' <priority> ' ' <bits> (' '|'+') <data> EOL
+    'Q' <priority> ' ' <bits> ' ' <data> EOL
 
     'Q'        : command code
     <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
-    ' ' | '+'  : a plus indicates that the forward frame is send twice
     <data>     : frame data to send in hex presentation
     EOL        : end of line = 0x0d
+
+A query is never sent twice. The backward frame timeout is armed once, when the frame
+ends, so a repeated query could not be answered. `Q` answers `A3` to a `+`. Send the
+forward frame twice with `S` where that is what is wanted.
 
 ## Send Frame `S`
 

@@ -118,7 +118,6 @@ static const struct command_spec command_specs[] = {
       .kind = COMMAND_KIND_FRAME,
       .frame_kind = FRAME_KIND_QUERY,
       .priority_max = 6, // 6 parses and the frame type lookup rejects it
-      .twice_allowed = true,
       .data_fits_length = true },
     { .letter = COMMAND_SEND,
       .argument = { ARGUMENT_PRIORITY, ARGUMENT_LENGTH, ARGUMENT_DATA },

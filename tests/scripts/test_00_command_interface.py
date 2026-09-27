@@ -67,6 +67,8 @@ def test_version():
         ("S1 10 1000+\r", DaliStatus.INTERFACE, 0xA3),
         ("S1 10 -1000\r", DaliStatus.INTERFACE, 0xA3),
         ("Q1 10x1000\r", DaliStatus.INTERFACE, 0xA3),
+        # a query is never sent twice - send the forward frame explicitly instead
+        ("Q1 10+FF00\r", DaliStatus.INTERFACE, 0xA3),
         ("Y10junk\r", DaliStatus.INTERFACE, 0xA3),
         ("R1 1 10 1000junk\r", DaliStatus.INTERFACE, 0xA3),
         ("R1  1 10 1000\r", DaliStatus.INTERFACE, 0xA3),
@@ -81,6 +83,31 @@ def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
     result = dali_serial.get(timeout_time_sec)
     assert result.status == expected_result
     assert result.length == detailed_code
+
+
+def test_send_twice_is_still_accepted_for_s(dali_serial):
+    """`+` stays legal on S - only Q rejects it."""
+    dali_serial.port.write("S1 10+A3CD\r".encode("ascii"))
+    for _ in range(2):
+        result = dali_serial.get(timeout_time_sec)
+        assert result.status == DaliStatus.LOOPBACK
+        assert result.length == 0x10
+        assert result.data == 0xA3CD
+
+
+def test_a_query_sent_twice_is_refused(dali_serial):
+    """The repeated query never armed its backward frame timeout, so it
+    answered nothing at all. The combination is refused now."""
+    dali_serial.port.write("Q1 10+FF00\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA3
+    # a plain query still answers
+    dali_serial.port.write("Q1 10 FF00\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.TIMEOUT
 
 
 def test_input_queue(dali_serial):

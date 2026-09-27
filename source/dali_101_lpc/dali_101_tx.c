@@ -199,15 +199,22 @@ int dali_101_send(const struct dali_tx_frame frame)
     if (frame.type == DALI_FRAME_NONE) {
         return -EINVAL;
     }
+    const bool is_query = frame.type == DALI_FRAME_QUERY_1 || frame.type == DALI_FRAME_QUERY_2 ||
+                          frame.type == DALI_FRAME_QUERY_3 || frame.type == DALI_FRAME_QUERY_4 ||
+                          frame.type == DALI_FRAME_QUERY_5;
+    /* The backward frame timeout is armed once, when the waveform ends, so a repeated
+       query would arm it after the first frame and let the second frame disarm it
+       again. Nothing would ever answer, so the combination is refused here as well as
+       in the command parser. */
+    if (is_query && frame.repeat) {
+        return -EINVAL;
+    }
     tx_reset();
     const int rc = calculate_counts(frame);
     if (rc) {
         return rc;
     }
-    if (frame.type == DALI_FRAME_QUERY_1 || frame.type == DALI_FRAME_QUERY_2 || frame.type == DALI_FRAME_QUERY_3 ||
-        frame.type == DALI_FRAME_QUERY_4 || frame.type == DALI_FRAME_QUERY_5) {
-        tx.is_query = true;
-    }
+    tx.is_query = is_query;
     tx.repeat = frame.repeat;
     rx_schedule_transmission(frame.type);
     return 0;
