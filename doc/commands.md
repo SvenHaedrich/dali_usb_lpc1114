@@ -1,9 +1,11 @@
+# Commands
+
 ## Serial Parameters
 
 Baudrate: 500,000 Baud \
 Data bits: 8 \
 Start bit: 1 \
-Stop bit: 1 
+Stop bit: 1
 
 ## Query `Q`
 
@@ -58,7 +60,7 @@ Send a backward frame.
 
 ## Send Corrupt Backward Frame `I`
 
-Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2. 
+Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2.
 
     'I'     : command code
     EOL     : end of line = 0x0d
@@ -95,4 +97,3 @@ Execute a defined sequence.
 
     'X'     : command code
     EOL     : end of line = 0x0d
-

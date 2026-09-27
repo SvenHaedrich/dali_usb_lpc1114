@@ -4,18 +4,20 @@
 
 Output messages use the following format (except for the firmware information message)
 
-    '{' <timestamp> (':'|'>') <length> ' ' <data> '}'
+```syntax
+'{' <timestamp> (':'|'>') <length> ' ' <data> '}'
 
-    <timestamp> : integer number,
-                each tick represents 1 millisecond,
-                number is given in hex presentation,
-                fixed length of 8 digits
+<timestamp> : integer number,
+            each tick represents 1 millisecond,
+            number is given in hex presentation,
+            fixed length of 8 digits
 
-    <length>    : data bits received, or status code
-                number is given in hex presentation,
-                fixed length of 2 digits
-                for status codes bit 7 is set, see table
-    <data>      : received data payload, or additional information
+<length>    : data bits received, or status code
+            number is given in hex presentation,
+            fixed length of 2 digits
+            for status codes bit 7 is set, see table
+<data>      : received data payload, or additional information
+```
 
 ## Status Codes
 
@@ -31,8 +33,9 @@ Output messages use the following format (except for the firmware information me
  |          A3 | Bad command                      | N/A                       |
  |          A5 | DALI message queue overflow      | N/A                       |
 
-NOTE The observed bit timing is shifted by 8 bits to the left, and the lower 8 bits code the data bit where the timing
-error occured.
+> [!NOTE]
+> The observed bit timing is shifted by 8 bits to the left, and the lower 8 bits
+> code the data bit where the timing error occurred.
 
 ## Sequences
 
