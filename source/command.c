@@ -43,6 +43,7 @@ enum command_kind {
     COMMAND_KIND_SEQUENCE_START,
     COMMAND_KIND_SEQUENCE_NEXT,
     COMMAND_KIND_SEQUENCE_EXECUTE,
+    COMMAND_KIND_BANNER, // answered by this task, never queued
 };
 
 struct command_item {
@@ -68,6 +69,91 @@ static void report_status(enum dali_status status)
     serial_print_frame(frame);
 }
 
+static void queue_item(const struct command_item item)
+{
+    if (xQueueSendToBack(command.queue_handle, &item, 0) == errQUEUE_FULL) {
+        report_status(DALI_ERROR_QUEUE_FULL);
+    }
+}
+
+/* Every command that carries arguments has the same shape: hex fields in a fixed
+   order, one space between them, ending at the terminator. They differ only in
+   which fields they take and what is built from them, so the shape is described
+   once, in a table, and read by one parser. */
+
+enum argument {
+    ARGUMENT_NONE = 0, // zero fills the unused slots of the table below
+    ARGUMENT_PRIORITY,
+    ARGUMENT_REPEAT,
+    ARGUMENT_LENGTH,
+    ARGUMENT_DATA,
+    ARGUMENT_PERIOD,
+};
+
+#define ARGUMENTS_MAX (5U) // four fields and the terminator
+
+enum frame_kind {
+    FRAME_KIND_NONE = 0,
+    FRAME_KIND_FORWARD, // the priority picks DALI_FRAME_FORWARD_n or back to back
+    FRAME_KIND_QUERY,   // the priority picks DALI_FRAME_QUERY_n
+    FRAME_KIND_BACKWARD,
+    FRAME_KIND_CORRUPT,
+};
+
+struct command_spec {
+    char letter;
+    enum argument argument[ARGUMENTS_MAX];
+    enum command_kind kind;
+    enum frame_kind frame_kind;
+    uint8_t priority_max;  // 5 for a query, 6 where a back to back frame is allowed
+    uint8_t fixed_length;  // for the commands that carry no <bits> field
+    bool twice_allowed;    // the separator before <data> may be '+'
+    bool data_fits_length; // <data> has to fit into <bits>
+};
+
+/* The grammar of doc/commands.md. Adding a command is a row here. */
+static const struct command_spec command_specs[] = {
+    { .letter = COMMAND_QUERY,
+      .argument = { ARGUMENT_PRIORITY, ARGUMENT_LENGTH, ARGUMENT_DATA },
+      .kind = COMMAND_KIND_FRAME,
+      .frame_kind = FRAME_KIND_QUERY,
+      .priority_max = 6, // 6 parses and the frame type lookup rejects it
+      .twice_allowed = true,
+      .data_fits_length = true },
+    { .letter = COMMAND_SEND,
+      .argument = { ARGUMENT_PRIORITY, ARGUMENT_LENGTH, ARGUMENT_DATA },
+      .kind = COMMAND_KIND_FRAME,
+      .frame_kind = FRAME_KIND_FORWARD,
+      .priority_max = 6,
+      .twice_allowed = true,
+      .data_fits_length = true },
+    { .letter = COMMAND_REPEAT,
+      .argument = { ARGUMENT_PRIORITY, ARGUMENT_REPEAT, ARGUMENT_LENGTH, ARGUMENT_DATA },
+      .kind = COMMAND_KIND_FRAME,
+      .frame_kind = FRAME_KIND_FORWARD,
+      .priority_max = 6,
+      .data_fits_length = true },
+    { .letter = COMMAND_BACKFRAME,
+      .argument = { ARGUMENT_DATA },
+      .kind = COMMAND_KIND_FRAME,
+      .frame_kind = FRAME_KIND_BACKWARD,
+      .fixed_length = 8,
+      .data_fits_length = true },
+    { .letter = COMMAND_CORRUPT, .kind = COMMAND_KIND_FRAME, .frame_kind = FRAME_KIND_CORRUPT },
+    { .letter = COMMAND_START_SEQ, .argument = { ARGUMENT_PERIOD }, .kind = COMMAND_KIND_SEQUENCE_START },
+    { .letter = COMMAND_NEXT_SEQ, .argument = { ARGUMENT_PERIOD }, .kind = COMMAND_KIND_SEQUENCE_NEXT },
+    { .letter = COMMAND_EXECUTE_SEQ, .kind = COMMAND_KIND_SEQUENCE_EXECUTE },
+    { .letter = COMMAND_HELP, .kind = COMMAND_KIND_BANNER },
+};
+
+struct arguments {
+    uint64_t data;
+    uint32_t period_us;
+    uint8_t priority;
+    uint8_t repeat;
+    uint8_t length;
+};
+
 static bool is_hex_digit(char character)
 {
     return ((character >= '0' && character <= '9') || (character >= 'A' && character <= 'F') ||
@@ -85,7 +171,10 @@ static uint_fast8_t hex_digit_value(char character)
     return (uint_fast8_t)(character - 'a' + 10);
 }
 
-static bool read_u64_hex_argument(char** position, uint64_t* value)
+/* Reads one hex field, in either case, and refuses a field that is empty or does
+   not fit. strtoull used to do this and took a sign, an 0x prefix and leading
+   whitespace with it. */
+static bool read_hex(char** position, uint64_t* value)
 {
     const char* start = *position;
     uint64_t result = 0;
@@ -104,42 +193,95 @@ static bool read_u64_hex_argument(char** position, uint64_t* value)
     return true;
 }
 
-static bool read_u8_hex_argument(char** position, uint8_t* value)
-{
-    uint64_t wide_value;
-    if (!read_u64_hex_argument(position, &wide_value) || wide_value > UINT8_MAX) {
-        return false;
-    }
-    *value = (uint8_t)wide_value;
-    return true;
-}
-
-static bool read_separator(char** position, char expected)
-{
-    if (**position != expected) {
-        return false;
-    }
-    (*position)++;
-    return true;
-}
-
 static bool at_end_of_command(const char* position)
 {
     return (*position == '\000');
 }
 
-static bool priority_or_length_illegal(uint8_t priority, uint8_t length)
+/* One space, except before the <data> of a command that takes the twice
+   indicator, where a '+' asks for the frame to go out twice. */
+static bool
+read_separator(const struct command_spec* spec, enum argument next, char** position, struct arguments* arguments)
 {
-    if (length > DALI_MAX_DATA_LENGTH) {
+    if (**position == ' ') {
+        (*position)++;
         return true;
     }
-    if (priority < 1) {
-        return true;
-    }
-    if (priority > 6) {
+    if (spec->twice_allowed && next == ARGUMENT_DATA && **position == COMMAND_CHAR_TWICE) {
+        arguments->repeat = 1; // sending the frame twice is one repetition
+        (*position)++;
         return true;
     }
     return false;
+}
+
+/* The limits doc/commands.md states. <data> is the only one that depends on
+   another field, and <bits> always precedes it. */
+static bool
+read_argument(const struct command_spec* spec, enum argument which, char** position, struct arguments* arguments)
+{
+    uint64_t value;
+
+    if (!read_hex(position, &value)) {
+        return false;
+    }
+    switch (which) {
+    case ARGUMENT_PRIORITY:
+        if (value < 1 || value > spec->priority_max) {
+            return false;
+        }
+        arguments->priority = (uint8_t)value;
+        return true;
+    case ARGUMENT_REPEAT:
+        if (value > UINT8_MAX) {
+            return false;
+        }
+        arguments->repeat = (uint8_t)value;
+        return true;
+    case ARGUMENT_LENGTH:
+        if (value > DALI_MAX_DATA_LENGTH) {
+            return false;
+        }
+        arguments->length = (uint8_t)value;
+        return true;
+    case ARGUMENT_DATA:
+        // the largest value <bits> can carry is (1 << bits) - 1
+        if (spec->data_fits_length && value >= ((uint64_t)1 << arguments->length)) {
+            return false;
+        }
+        if (value > UINT32_MAX) {
+            return false;
+        }
+        arguments->data = value;
+        return true;
+    case ARGUMENT_PERIOD:
+        if (value > UINT32_MAX) {
+            return false;
+        }
+        arguments->period_us = (uint32_t)value;
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool read_arguments(const struct command_spec* spec, char* position, struct arguments* arguments)
+{
+    *arguments = (struct arguments){ .length = spec->fixed_length };
+
+    for (uint_fast8_t index = 0; index < ARGUMENTS_MAX; index++) {
+        const enum argument which = spec->argument[index];
+        if (which == ARGUMENT_NONE) {
+            break;
+        }
+        if (index && !read_separator(spec, which, &position, arguments)) {
+            return false;
+        }
+        if (!read_argument(spec, which, &position, arguments)) {
+            return false;
+        }
+    }
+    return at_end_of_command(position);
 }
 
 static enum dali_frame_type get_forward_type(uint8_t priority)
@@ -180,165 +322,60 @@ static enum dali_frame_type get_query_type(uint8_t priority)
     }
 }
 
-static bool data_illegal(uint64_t data, uint8_t length)
+static struct dali_tx_frame build_frame(const struct command_spec* spec, const struct arguments* arguments)
 {
-    if (length > DALI_MAX_DATA_LENGTH) {
-        return true;
+    switch (spec->frame_kind) {
+    case FRAME_KIND_FORWARD:
+        return (struct dali_tx_frame){ .type = get_forward_type(arguments->priority),
+                                       .repeat = arguments->repeat,
+                                       .length = arguments->length,
+                                       .data = (uint32_t)arguments->data };
+    case FRAME_KIND_QUERY:
+        return (struct dali_tx_frame){ .type = get_query_type(arguments->priority),
+                                       .repeat = 0,
+                                       .length = arguments->length,
+                                       .data = (uint32_t)arguments->data };
+    case FRAME_KIND_BACKWARD:
+        return (struct dali_tx_frame){ .type = DALI_FRAME_BACKWARD,
+                                       .repeat = 0,
+                                       .length = arguments->length, // fixed_length of the table row
+                                       .data = (uint32_t)arguments->data };
+    case FRAME_KIND_CORRUPT:
+        return (struct dali_tx_frame){ .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0 };
+    case FRAME_KIND_NONE:
+        break; // a row that asks for no frame never reaches here
     }
-    const uint64_t upper_limit = (uint64_t)1 << length;
-    return (data >= upper_limit);
+    return (struct dali_tx_frame){ .type = DALI_FRAME_NONE, .repeat = 0, .length = 0, .data = 0 };
 }
 
-static void queue_item(const struct command_item item)
+static const struct command_spec* find_command(char letter)
 {
-    if (xQueueSendToBack(command.queue_handle, &item, 0) == errQUEUE_FULL) {
-        report_status(DALI_ERROR_QUEUE_FULL);
+    for (uint_fast8_t index = 0; index < (sizeof(command_specs) / sizeof(command_specs[0])); index++) {
+        if (command_specs[index].letter == letter) {
+            return &command_specs[index];
+        }
     }
+    return NULL;
 }
 
-static void queue_frame(const struct dali_tx_frame frame)
+static void execute_command(const struct command_spec* spec, char* argument_buffer)
 {
-    queue_item((struct command_item){ .kind = COMMAND_KIND_FRAME, .argument.frame = frame });
-}
+    struct arguments arguments;
 
-static void queue_sequence(enum command_kind kind, uint32_t period_us)
-{
-    queue_item((struct command_item){ .kind = kind, .argument.period_us = period_us });
-}
-
-struct frame_arguments {
-    uint64_t data;
-    uint8_t priority;
-    uint8_t length;
-    bool twice;
-};
-
-static bool read_frame_arguments(char* position, struct frame_arguments* arguments)
-{
-    if (!read_u8_hex_argument(&position, &arguments->priority) || !read_separator(&position, ' ') ||
-        !read_u8_hex_argument(&position, &arguments->length)) {
-        return false;
+    if (spec->kind == COMMAND_KIND_BANNER) {
+        serial_print_head();
+        return;
     }
-    const char twice_indicator = *position;
-    if (twice_indicator != ' ' && twice_indicator != COMMAND_CHAR_TWICE) {
-        return false;
-    }
-    position++;
-    if (!read_u64_hex_argument(&position, &arguments->data) || !at_end_of_command(position)) {
-        return false;
-    }
-    arguments->twice = (twice_indicator == COMMAND_CHAR_TWICE);
-    return true;
-}
-
-// 'Q' and 'S' take the same arguments and differ only in the frame type they ask for
-static void send_frame_command(char* argument_buffer, bool is_query)
-{
-    struct frame_arguments arguments;
-
-    if (!read_frame_arguments(argument_buffer, &arguments) ||
-        priority_or_length_illegal(arguments.priority, arguments.length) ||
-        data_illegal(arguments.data, arguments.length)) {
+    if (!read_arguments(spec, argument_buffer, &arguments)) {
         report_status(DALI_ERROR_BAD_COMMAND);
         return;
     }
-    const struct dali_tx_frame frame = { .type = is_query ? get_query_type(arguments.priority)
-                                                          : get_forward_type(arguments.priority),
-                                         .repeat = arguments.twice ? 1 : 0,
-                                         .length = arguments.length,
-                                         .data = (uint32_t)arguments.data };
-    queue_frame(frame);
-}
-
-static void send_backframe_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
-    uint8_t data;
-
-    if (!read_u8_hex_argument(&position, &data) || !at_end_of_command(position)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
+    if (spec->kind == COMMAND_KIND_FRAME) {
+        queue_item(
+            (struct command_item){ .kind = COMMAND_KIND_FRAME, .argument.frame = build_frame(spec, &arguments) });
         return;
     }
-    const struct dali_tx_frame frame = { .type = DALI_FRAME_BACKWARD, .repeat = 0, .length = 8, .data = data };
-    queue_frame(frame);
-}
-
-static void send_corrupt_frame_command(const char* argument_buffer)
-{
-    if (!at_end_of_command(argument_buffer)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    const struct dali_tx_frame frame = { .type = DALI_FRAME_CORRUPT, .repeat = 0, .length = 0, .data = 0 };
-    queue_frame(frame);
-}
-
-static void send_repeated_command(char* argument_buffer)
-{
-    char* position = argument_buffer;
-    uint8_t priority;
-    uint8_t repeat;
-    uint8_t length;
-    uint64_t data;
-
-    if (!read_u8_hex_argument(&position, &priority) || !read_separator(&position, ' ') ||
-        !read_u8_hex_argument(&position, &repeat) || !read_separator(&position, ' ') ||
-        !read_u8_hex_argument(&position, &length) || !read_separator(&position, ' ') ||
-        !read_u64_hex_argument(&position, &data) || !at_end_of_command(position)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    if (priority_or_length_illegal(priority, length) || data_illegal(data, length)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    const struct dali_tx_frame frame = {
-        .type = get_forward_type(priority), .repeat = repeat, .length = length, .data = (uint32_t)data
-    };
-    queue_frame(frame);
-}
-
-static bool read_period_argument(char* argument_buffer, uint32_t* period_us)
-{
-    char* position = argument_buffer;
-    uint64_t value;
-
-    if (!read_u64_hex_argument(&position, &value) || !at_end_of_command(position) || value > UINT32_MAX) {
-        return false;
-    }
-    *period_us = (uint32_t)value;
-    return true;
-}
-
-static void next_sequence(char* argument_buffer)
-{
-    uint32_t period_us;
-
-    if (!read_period_argument(argument_buffer, &period_us)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    queue_sequence(COMMAND_KIND_SEQUENCE_NEXT, period_us);
-}
-
-static void start_sequence(char* argument_buffer)
-{
-    uint32_t period_us;
-
-    if (!read_period_argument(argument_buffer, &period_us)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    queue_sequence(COMMAND_KIND_SEQUENCE_START, period_us);
-}
-
-static void execute_sequence(const char* argument_buffer)
-{
-    if (!at_end_of_command(argument_buffer)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
-    }
-    queue_sequence(COMMAND_KIND_SEQUENCE_EXECUTE, 0);
+    queue_item((struct command_item){ .kind = spec->kind, .argument.period_us = arguments.period_us });
 }
 
 __attribute__((noreturn)) static void command_task(__attribute__((unused)) void* dummy)
@@ -346,46 +383,15 @@ __attribute__((noreturn)) static void command_task(__attribute__((unused)) void*
     while (true) {
         uint32_t notifications;
         const BaseType_t result = xTaskNotifyWait(pdFALSE, UINT_MAX, &notifications, portMAX_DELAY);
-        if (result == pdPASS) {
-            switch (command.line[COMMAND_IDX_CMD]) {
-            case COMMAND_QUERY:
-                board_flash(LED_SERIAL);
-                send_frame_command(&command.line[COMMAND_IDX_ARG], true);
-                break;
-            case COMMAND_SEND:
-                board_flash(LED_SERIAL);
-                send_frame_command(&command.line[COMMAND_IDX_ARG], false);
-                break;
-            case COMMAND_BACKFRAME:
-                board_flash(LED_SERIAL);
-                send_backframe_command(&command.line[COMMAND_IDX_ARG]);
-                break;
-            case COMMAND_CORRUPT:
-                board_flash(LED_SERIAL);
-                send_corrupt_frame_command(&command.line[COMMAND_IDX_ARG]);
-                break;
-            case COMMAND_REPEAT:
-                board_flash(LED_SERIAL);
-                send_repeated_command(&command.line[COMMAND_IDX_ARG]);
-                break;
-            case COMMAND_HELP:
-                board_flash(LED_SERIAL);
-                serial_print_head();
-                break;
-            case COMMAND_START_SEQ:
-                board_flash(LED_SERIAL);
-                start_sequence(&command.line[COMMAND_IDX_ARG]);
-                break;
-            case COMMAND_NEXT_SEQ:
-                board_flash(LED_SERIAL);
-                next_sequence(&command.line[COMMAND_IDX_ARG]);
-                break;
-            case COMMAND_EXECUTE_SEQ:
-                board_flash(LED_SERIAL);
-                execute_sequence(&command.line[COMMAND_IDX_ARG]);
-                break;
-            }
+        if (result != pdPASS) {
+            continue;
         }
+        const struct command_spec* spec = find_command(command.line[COMMAND_IDX_CMD]);
+        if (spec == NULL) {
+            continue; // a line that never started with a command letter
+        }
+        board_flash(LED_SERIAL);
+        execute_command(spec, &command.line[COMMAND_IDX_ARG]);
     }
 }
 
@@ -404,34 +410,25 @@ void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
     static char* active_buffer = rx_buffer_1;
     static uint8_t buffer_index;
 
-    switch (character) {
-    case COMMAND_SEND:
-    case COMMAND_QUERY:
-    case COMMAND_REPEAT:
-    case COMMAND_NEXT_SEQ:
-    case COMMAND_START_SEQ:
-    case COMMAND_BACKFRAME:
-    case COMMAND_EXECUTE_SEQ:
-    case COMMAND_CORRUPT:
-        buffer_index = 0;
-        active_buffer[0] = character;
-        break;
-    case COMMAND_HELP:
+    if (character == COMMAND_HELP) {
+        // '?' carries no arguments and needs no terminator
         active_buffer[0] = character;
         active_buffer[1] = '\000';
         command.line = active_buffer;
         xTaskNotifyFromISR(command.task_handle, COMMAND_NOTIFY_PROCESS, eSetBits, higher_priority_woken);
         active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
         buffer_index = 0;
-        break;
-    case COMMAND_CHAR_EOL:
+    } else if (character == COMMAND_CHAR_EOL) {
         active_buffer[buffer_index] = '\000';
         command.line = active_buffer;
         xTaskNotifyFromISR(command.task_handle, COMMAND_NOTIFY_PROCESS, eSetBits, higher_priority_woken);
         active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
         buffer_index = 0;
-        break;
-    default:
+    } else if (find_command(character) != NULL) {
+        // a command letter starts a new line wherever it arrives
+        buffer_index = 0;
+        active_buffer[0] = character;
+    } else {
         active_buffer[buffer_index] = character;
     }
     if (buffer_index < (COMMAND_BUFFER_SIZE - 1))
@@ -444,7 +441,7 @@ void command_execute_pending(void)
     if (xQueueReceive(command.queue_handle, &item, 0) != pdPASS) {
         return;
     }
-    int rc;
+    int rc = 0; // every kind below assigns it, but the switch names no default
     switch (item.kind) {
     case COMMAND_KIND_FRAME:
         rc = dali_101_send(item.argument.frame);
@@ -456,9 +453,11 @@ void command_execute_pending(void)
     case COMMAND_KIND_SEQUENCE_NEXT:
         rc = dali_101_sequence_next(item.argument.period_us);
         break;
-    default:
+    case COMMAND_KIND_SEQUENCE_EXECUTE:
         rc = dali_101_sequence_execute();
         break;
+    case COMMAND_KIND_BANNER:
+        return; // printed by the COMMAND task, it never reaches this queue
     }
     if (rc < 0) {
         report_status(DALI_ERROR_CAN_NOT_PROCESS);
