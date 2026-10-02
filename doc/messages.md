@@ -12,26 +12,32 @@ Output messages use the following format (except for the firmware information me
             number is given in hex presentation,
             fixed length of 8 digits
 
-<length>    : data bits received, or status code
+':'         : signals a received frame
+
+'>'         : signals a loopback frame - the interface reads back its own transmission
+
+<length>    : data bits received, or status code,
             number is given in hex presentation,
-            fixed length of 2 digits
+            fixed length of 2 digits,
             for status codes bit 7 is set, see table
-<data>      : received data payload, or additional information
+<data>      : received data payload, or additional information,
+            number is given in hex presentation,
+            fixed length of 8 digits
 ```
 
 ## Status Codes
 
  | Status Code | Description                      | Information in `data`     |
  |-------------|----------------------------------|---------------------------|
- |          81 | Timeout                          | N/A                       |
- |          82 | Bad start bit timing             | Observed bit timing in µs |
- |          83 | Bad data bit timing              | Observed bit timing in µs |
- |          91 | System has failure (bus low)     | N/A                       |
- |          92 | System has recovered             | N/A                       |
- |          A0 | Can not process command          | N/A                       |
- |          A2 | Queue is full                    | N/A                       |
- |          A3 | Bad command                      | N/A                       |
- |          A5 | DALI message queue overflow      | N/A                       |
+ |        0x81 | Timeout                          | 0x00000000                |
+ |        0x82 | Bad start bit timing             | Observed bit timing in µs |
+ |        0x83 | Bad data bit timing              | Observed bit timing in µs |
+ |        0x91 | System has failure (bus low)     | 0x00000000                |
+ |        0x92 | System has recovered             | 0x00000000                |
+ |        0xA0 | Can not process command          | 0x00000000                |
+ |        0xA2 | Command queue is full            | 0x00000000                |
+ |        0xA3 | Bad command                      | 0x00000000                |
+ |        0xA5 | DALI message queue overflow      | 0x00000000                |
 
 > [!NOTE]
 > The observed bit timing is shifted by 8 bits to the left, and the lower 8 bits
@@ -48,8 +54,8 @@ sequenceDiagram
     participant DALI
     USB ->> Device: `S1 10 FF00`
     activate Device
-    Device -->> DALI: 0xFF00
-    Device -->> USB: `{00000011>10 FF00}
+    Device ->> DALI: 0xFF00
+    Device -->> USB: `{0000A1B4>10 0000FF00}`
     deactivate Device
 ```
 
@@ -62,16 +68,16 @@ sequenceDiagram
     participant DALI
     USB ->> Device: `Q1 10 FF00`
     activate Device
-    Device -->> DALI: 0xFF00
-    Device -->> USB: `{00000011>10 FF00}
+    Device ->> DALI: 0xFF00
+    Device -->> USB: `{0000A1B4>10 0000FF00}`
     Note over DALI: no one replies
-    Device -->> USB: `{00000015:81 0000}
+    Device -->> USB: `{0000A1D2:81 00000000}`
     deactivate Device
-    USB -->> Device: `Q1 10 FF90'
+    USB ->> Device: `Q1 10 FF90`
     activate Device
-    Device -->> DALI: 0xFF90
-    Device -->> USB: {00000020:10 FF90}
+    Device ->> DALI: 0xFF90
+    Device -->> USB: `{0000A20C>10 0000FF90}`
     DALI -->> Device: 0xC4
-    Device -->> USB: {00000026:08 C4}
+    Device -->> USB: `{0000A225:08 000000C4}`
     deactivate Device
 ```
