@@ -409,15 +409,7 @@ void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
     static char* active_buffer = rx_buffer_1;
     static uint8_t buffer_index;
 
-    if (character == COMMAND_HELP) {
-        // '?' carries no arguments and needs no terminator
-        active_buffer[0] = character;
-        active_buffer[1] = '\000';
-        command.line = active_buffer;
-        xTaskNotifyFromISR(command.task_handle, COMMAND_NOTIFY_PROCESS, eSetBits, higher_priority_woken);
-        active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
-        buffer_index = 0;
-    } else if (character == COMMAND_CHAR_EOL) {
+    if (character == COMMAND_CHAR_EOL) {
         active_buffer[buffer_index] = '\000';
         command.line = active_buffer;
         xTaskNotifyFromISR(command.task_handle, COMMAND_NOTIFY_PROCESS, eSetBits, higher_priority_woken);

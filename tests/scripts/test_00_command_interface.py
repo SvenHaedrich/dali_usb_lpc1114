@@ -11,28 +11,32 @@ time_for_command_processing = 0.0005
 
 
 def test_version():
+    """`?` is a command like any other and carries its EOL, doc/commands.md.
+
+    The documented answer is two lines, the banner and the version, and one
+    command has to produce exactly one of them.
+    """
     serial = DaliSerial("/dev/ttyUSB0", start_receive=False)
-    command = "?"
-    serial.port.write(command.encode("ascii"))
-    timeout = time.time() + timeout_time_sec
-    while time.time() < timeout:
-        if serial.port.inWaiting() >= 0:
-            line = serial.port.readline()
-            logger.debug(f"read line: {line}")
-            if line.find(b"Version") == 0:
-                line.decode("ascii", errors="replace")
-                try:
-                    major = line[8] - ord("0")
-                    minor = line[10] - ord("0")
-                    bugfix = line[12] - ord("0")
-                    logger.debug(f"found Version information {major}.{minor}.{bugfix}")
-                    break
-                except ValueError:
-                    continue
+    serial.port.reset_input_buffer()
+    serial.port.write("?\r".encode("ascii"))
+    deadline = time.time() + timeout_time_sec
+    raw = b""
+    while time.time() < deadline:
+        raw += serial.port.read(serial.port.in_waiting or 1)
+    serial.close()
+
+    lines = raw.decode("ascii", errors="replace").splitlines()
+    logger.debug(f"information message: {lines}")
+    banners = [line for line in lines if line.startswith("DALI USB interface")]
+    versions = [line for line in lines if line.startswith("Version ")]
+    assert len(banners) == 1, f"one command, one banner, got {banners}"
+    assert len(versions) == 1, f"one command, one version line, got {versions}"
+
+    major, minor, bugfix = (int(part) for part in versions[0].split()[1].split("."))
+    logger.debug(f"found Version information {major}.{minor}.{bugfix}")
     assert major == 3
     assert minor == 7
     assert bugfix >= 0
-    serial.close()
 
 
 @pytest.mark.parametrize(
