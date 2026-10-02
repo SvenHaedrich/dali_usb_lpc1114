@@ -8,6 +8,7 @@
    Not part of the driver interface, see dali_101.h for that. */
 
 void rx_schedule_transmission(enum dali_frame_type type);
+void rx_cancel_transmission(void);
 void rx_schedule_query(void);
 
 void dali_tx_init(void);

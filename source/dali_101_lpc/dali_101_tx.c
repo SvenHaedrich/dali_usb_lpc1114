@@ -222,7 +222,11 @@ int dali_101_send(const struct dali_tx_frame frame)
 
 void dali_101_sequence_start(void)
 {
+    /* Reset first: it makes the transmitter idle, and manage_tx() leaves a
+       repeat alone once it is. Cancelling first leaves a window for the DALI RX
+       task to schedule one, and the flag would never clear again. */
     tx_reset();
+    rx_cancel_transmission();
     tx.repeat = 0;
     tx.sequence = true;
 }
@@ -240,7 +244,6 @@ int dali_101_sequence_next(uint32_t period_us)
     return 0;
 }
 
-// accepted here, started by rx_schedule_transmission() once the bus allows it
 int dali_101_sequence_execute(void)
 {
     if (!tx.sequence || tx.index_next >= tx.index_max || tx.index_max == 0) {
@@ -248,7 +251,7 @@ int dali_101_sequence_execute(void)
     }
     tx.sequence = false;
     tx.index_max--;
-    rx_schedule_transmission(DALI_FRAME_BACK_TO_BACK);
+    dali_tx_start_send();
     return 0;
 }
 

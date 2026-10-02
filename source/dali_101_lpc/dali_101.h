@@ -122,7 +122,6 @@ bool dali_101_tx_is_idle(void);
  * @return `false` - a transmission is active or waiting for its settling time
  */
 bool dali_101_is_ready_for_command(void);
-bool dali_101_is_bus_free(void);
 
 /**
  * @brief Start a new bit sequence, discard old sequence information

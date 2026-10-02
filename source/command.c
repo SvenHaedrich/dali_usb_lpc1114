@@ -444,9 +444,9 @@ void command_execute_pending(void)
     if (xQueuePeek(command.queue_handle, &item, 0) != pdPASS) {
         return;
     }
-    // W resets the transmitter at once, so unlike a frame it cannot schedule
-    // itself - hold it, and N and X behind it, until the bus is closed
-    if (item.kind == COMMAND_KIND_SEQUENCE_START && !dali_101_is_bus_free()) {
+    // a frame waits for the transmitter so that it cannot cut into another one;
+    // a sequence does not, W is documented to stop whatever is on the wire
+    if (item.kind == COMMAND_KIND_FRAME && !dali_101_is_ready_for_command()) {
         return;
     }
     (void)xQueueReceive(command.queue_handle, &item, 0);

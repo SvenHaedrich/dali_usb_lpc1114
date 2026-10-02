@@ -318,23 +318,12 @@ bool dali_101_is_ready_for_command(void)
     return dali_101_tx_is_idle() && !rx.transmission_is_waiting;
 }
 
-// true once the frame on the bus is closed - the stop condition, not the settling
-bool dali_101_is_bus_free(void)
+// W throws the waveform away, so a start the receiver still has scheduled for it
+// has to go too, or transmission_is_waiting never clears
+void rx_cancel_transmission(void)
 {
-    switch (rx.status) {
-    case START_BIT_START:
-    case START_BIT_INSIDE:
-    case DATA_BIT_START:
-    case DATA_BIT_INSIDE:
-    case ERROR_IN_FRAME:
-        return false;
-    case INTER_FRAME_IDLE:
-    case IDLE:
-    case LOW: // a dead bus is free, not busy
-    case FAILURE:
-        break;
-    }
-    return true;
+    board_dali_rx_period_match_enable(false);
+    rx.transmission_is_waiting = false;
 }
 
 void rx_schedule_transmission(enum dali_frame_type type)

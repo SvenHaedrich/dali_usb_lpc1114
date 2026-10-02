@@ -166,12 +166,12 @@ def test_sequence_execute_without_definition(dali_serial):
     assert result.length == 0xA0
 
 
-def test_a_frame_in_flight_survives_a_sequence_command(dali_serial):
-    """`W` must not cut a transmission in half.
+def test_a_sequence_command_cuts_a_frame_in_flight(dali_serial):
+    """`W` stops an ongoing transmission immediately, doc/commands.md.
 
-    dali_101_sequence_start() calls tx_reset(), which drives the bus idle and
-    stops the timer. Run straight from the COMMAND task at priority 3 it
-    preempts MAIN at priority 1 and truncates whatever is on the wire.
+    The frame on the wire is left corrupt and reported as such, so the loopback
+    the host would otherwise have received never arrives. The document does not
+    name the code, so the test only asks that the frame did not survive intact.
     """
     dali_serial.flush_queue()
     dali_serial.port.write("S1 20 12345678\r".encode("ascii"))
@@ -179,11 +179,15 @@ def test_a_frame_in_flight_survives_a_sequence_command(dali_serial):
     dali_serial.port.write("W1a1\r".encode("ascii"))
 
     result = dali_serial.get(timeout_time_sec)
-    assert result.status == DaliStatus.LOOPBACK
-    assert result.length == 0x20
-    assert result.data == 0x12345678
+    survived = (
+        result.status == DaliStatus.LOOPBACK
+        and result.length == 0x20
+        and result.data == 0x12345678
+    )
+    assert not survived, "the sequence command did not cut the frame"
 
-    # discard whatever sequence the W left behind, and prove the bus still works
+    # discard whatever the interrupted frame left behind, and prove the bus works
+    time.sleep(0.1)
     dali_serial.flush_queue()
     dali_serial.port.write("S1 10 5A5A\r".encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
@@ -191,25 +195,25 @@ def test_a_frame_in_flight_survives_a_sequence_command(dali_serial):
     assert result.data == 0x5A5A
 
 
-def test_a_sequence_does_not_overtake_a_queued_frame(dali_serial):
-    """`W`/`N`/`X` run in the COMMAND task while frames wait for MAIN.
+def test_a_sequence_runs_after_it_cut_a_frame(dali_serial):
+    """Cutting a frame must not cost the sequence itself.
 
-    The sequence therefore reaches the transmitter first, so the frame the host
-    asked for earlier is sent second, or trampled while it is being built.
+    `W` is allowed to interrupt the frame ahead of it, but the sequence it
+    starts still has to be defined, executed and reported.
     """
     dali_serial.flush_queue()
     for command in ("S1 10 1000", "W1a1", "N1a1", "X"):
         dali_serial.port.write(f"{command}\r".encode("ascii"))
         time.sleep(time_for_command_processing)
 
-    result = dali_serial.get(timeout_time_sec)
-    assert result.status == DaliStatus.LOOPBACK
-    assert result.length == 0x10
-    assert result.data == 0x1000
-
-    result = dali_serial.get(timeout_time_sec)
-    assert result.status == DaliStatus.LOOPBACK
-    assert result.length == 0x00
+    # one phase survives `X`, so the sequence puts a start bit and nothing else
+    # on the bus and comes back as a frame of zero data bits
+    for _ in range(4):
+        result = dali_serial.get(timeout_time_sec)
+        if result.status == DaliStatus.LOOPBACK and result.length == 0x00:
+            break
+    else:
+        raise AssertionError("the sequence was never executed")
 
 
 def test_an_empty_line_is_ignored(dali_serial):

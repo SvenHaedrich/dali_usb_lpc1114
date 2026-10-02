@@ -32,9 +32,7 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
             board_flash(LED_DALI);
             serial_print_frame(rx_frame);
         }
-        if (dali_101_is_ready_for_command()) {
-            command_execute_pending();
-        }
+        command_execute_pending();
     }
 }
 
