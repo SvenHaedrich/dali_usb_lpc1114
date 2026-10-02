@@ -425,13 +425,17 @@ void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
         buffer_index = 0;
     } else if (find_command(character) != NULL) {
         // a command letter starts a new line wherever it arrives
-        buffer_index = 0;
         active_buffer[0] = character;
+        buffer_index = 1;
     } else {
+        /* Only appending advances the index. It used to advance after a line had
+           ended too, so an empty line was terminated at index 1 and index 0 still
+           held the command letter of the line before last. */
         active_buffer[buffer_index] = character;
+        if (buffer_index < (COMMAND_BUFFER_SIZE - 1)) {
+            buffer_index++;
+        }
     }
-    if (buffer_index < (COMMAND_BUFFER_SIZE - 1))
-        buffer_index++;
 }
 
 void command_execute_pending(void)

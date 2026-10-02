@@ -212,6 +212,41 @@ def test_a_sequence_does_not_overtake_a_queued_frame(dali_serial):
     assert result.length == 0x00
 
 
+def test_an_empty_line_is_ignored(dali_serial):
+    """A bare EOL is not a command and answers nothing at all.
+
+    The receive index was reset when a line ended and then advanced again by the
+    shared tail, so an empty line was terminated at index 1 and index 0 still
+    held the command letter of the line before last. Only `X` and `I` take no
+    arguments, so those are the two that were executed a second time - and `I`
+    put a corrupt backward frame on the bus for every empty line.
+    """
+    dali_serial.flush_queue()
+    dali_serial.port.write("X\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+
+    for _ in range(4):
+        dali_serial.port.write("\r".encode("ascii"))
+        time.sleep(time_for_command_processing)
+    result = dali_serial.get(0.5)
+    assert "queue is empty" in result.message, f"an empty line was answered: {result}"
+
+    # `I` is the dangerous one, it reaches the bus
+    dali_serial.port.write("I\r".encode("ascii"))
+    dali_serial.get(timeout_time_sec)
+    dali_serial.flush_queue()
+
+    for _ in range(4):
+        dali_serial.port.write("\r".encode("ascii"))
+        time.sleep(time_for_command_processing)
+    result = dali_serial.get(0.5)
+    assert "queue is empty" in result.message, (
+        f"an empty line put a frame on the bus: {result}"
+    )
+
+
 def test_sequence_next_without_start(dali_serial):
     """`N` without a preceding `W` has no sequence to add to."""
     dali_serial.port.write("N64\r".encode("ascii"))
