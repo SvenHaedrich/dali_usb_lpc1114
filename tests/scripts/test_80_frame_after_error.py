@@ -69,12 +69,22 @@ def test_a_backward_frame_behind_an_error_frame_is_sent(dali_serial):
 
 
 def test_a_corrupt_frame_behind_an_error_frame_is_sent(dali_serial):
-    """`I` takes the same path, with a settling time of 0 that is always in the past."""
+    """`I` takes the same path, and owes the same settling time as `Y`.
+
+    A corrupt backward frame is still a backward frame, doc/commands.md.
+    """
     error = send_behind_an_error_frame(dali_serial, "I")
 
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.TIMING, f"I was never sent: {result}"
-    assert result.timestamp > error.timestamp
+    # the receiver reports the stretched phase of the corrupt frame, about 1500 us
+    assert 1400 < (result.data >> 8) < 1600, f"not the corrupt frame: {result}"
+    delta = result.timestamp - error.timestamp
+    logger.debug(f"I started {delta * 1000:.0f} ms after the error frame")
+    assert delta >= BAD_SEQUENCE_SEC + BACKWARD_SETTLING_SEC - 0.001, (
+        "I did not wait for its settling time"
+    )
+    assert delta < 0.020
 
     assert_transmitter_alive(dali_serial)
 

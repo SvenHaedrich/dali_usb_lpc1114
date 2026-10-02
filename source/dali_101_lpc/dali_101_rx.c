@@ -116,6 +116,7 @@ static uint32_t get_settling_time_us(enum dali_frame_type type)
     static const uint32_t settling_time_us[] = { 5500, 13500, 14900, 16300, 17900, 19500, 2450 };
     switch (type) {
     case DALI_FRAME_BACKWARD:
+    case DALI_FRAME_CORRUPT:
         return settling_time_us[0];
     case DALI_FRAME_FORWARD_1:
     case DALI_FRAME_QUERY_1:

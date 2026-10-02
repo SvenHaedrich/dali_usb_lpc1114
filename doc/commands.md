@@ -64,6 +64,7 @@ Send a backward frame.
 ## Send Corrupt Backward Frame `I`
 
 Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2.
+It uses the same inter frame timing as a backward frame sent with `Y`.
 
     'I'     : command code
 
