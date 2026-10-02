@@ -7,6 +7,7 @@ from dali_interface.serial import DaliSerial
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
+# doc/commands.md asks for 0.2 ms between commands; the suite keeps a margin
 time_for_command_processing = 0.0005
 
 
@@ -133,23 +134,51 @@ def test_input_queue(dali_serial):
 
 
 def test_queue_overflow(dali_serial):
+    """More frames than the command queue holds answers 0xA2, doc/messages.md."""
     time.sleep(timeout_time_sec)
     test_cmd = "S1 10 FF0A\r"
     queue_size = 5
     overfill = 5
-    for i in range(queue_size + overfill):
+    for _ in range(queue_size + overfill):
         dali_serial.port.write(test_cmd.encode("ascii"))
         time.sleep(time_for_command_processing)
-    for i in range(queue_size + overfill):
+    for _ in range(queue_size + overfill):
         result = dali_serial.get(timeout_time_sec)
         if result.status == DaliStatus.LOOPBACK:
             continue
         break
     assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA2
     # read until no message is left
-    for i in range(queue_size + overfill):
+    for _ in range(queue_size + overfill):
         result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.TIMEOUT
+
+
+def test_commands_sent_too_fast_are_refused(dali_serial):
+    """doc/commands.md asks for 0.2 ms between commands and promises 0xA2 when
+    that is not honoured. A whole sequence written in one go honours nothing.
+    """
+    dali_serial.flush_queue()
+    dali_serial.port.write(b"W1a1\r" + b"N1a1\r" * 16 + b"X\r")
+
+    codes = []
+    for _ in range(8):
+        result = dali_serial.get(timeout_time_sec)
+        if "queue is empty" in result.message:
+            break
+        codes.append(result.length)
+    assert 0xA2 in codes, (
+        f"expected a full command queue, got {[hex(c) for c in codes]}"
+    )
+
+    # and the adapter carries on
+    time.sleep(0.2)
+    dali_serial.flush_queue()
+    dali_serial.port.write("S1 10 5A5A\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.data == 0x5A5A
 
 
 def test_sequence_execute_without_definition(dali_serial):
@@ -263,15 +292,39 @@ def test_sequence_next_without_start(dali_serial):
     assert result.length == 0xA0
 
 
-def test_overflowed_sequence_is_not_executed(dali_serial):
-    """A sequence that did not fit must not be sent in its truncated form."""
+def test_sequence_accepts_sixty_six_steps(dali_serial):
+    """doc/commands.md allows 66 `N` steps per transmission."""
+    dali_serial.flush_queue()
     dali_serial.port.write("W1a4\r".encode("ascii"))
     time.sleep(time_for_command_processing)
-    for _ in range(70):
+    for _ in range(66):
         dali_serial.port.write("N1a4\r".encode("ascii"))
         time.sleep(time_for_command_processing)
+
+    result = dali_serial.get(0.5)
+    assert "queue is empty" in result.message, f"a step was refused: {result}"
+
+    # leave nothing behind for the next test
+    dali_serial.port.write("X\r".encode("ascii"))
     time.sleep(0.2)
     dali_serial.flush_queue()
+
+
+def test_sequence_refuses_the_sixty_seventh_step(dali_serial):
+    """The step after the documented limit is refused, and takes the sequence
+    with it so that no truncated form can be sent."""
+    dali_serial.flush_queue()
+    dali_serial.port.write("W1a4\r".encode("ascii"))
+    time.sleep(time_for_command_processing)
+    for _ in range(66):
+        dali_serial.port.write("N1a4\r".encode("ascii"))
+        time.sleep(time_for_command_processing)
+    dali_serial.flush_queue()
+
+    dali_serial.port.write("N1a4\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
 
     dali_serial.port.write("X\r".encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
