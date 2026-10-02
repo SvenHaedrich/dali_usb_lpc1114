@@ -22,11 +22,15 @@ static void board_setup_main_clock(void)
     LPC_SYSCON->PDRUNCFG &= ~PDRUNCFG_SYSOSC_PD;
 
     // wait 200 µs for main oscillator to stabilize
-    for (uint32_t i = 0; i < 0x100U; i++)
+    for (volatile uint32_t i = 0; i < 0x100U; i++)
         ;
 
-    // set PLL input to main oscillator
+    // set PLL input to main oscillator, which only takes effect on a 0 to 1 edge of the update register
     LPC_SYSCON->SYSPLLCLKSEL = 0x01U;
+    LPC_SYSCON->SYSPLLCLKUEN = 0x00U;
+    LPC_SYSCON->SYSPLLCLKUEN = 0x01U;
+    while (!(LPC_SYSCON->SYSPLLCLKUEN & 0x01U))
+        ;
 
     // power down pll to change divider settings
     LPC_SYSCON->PDRUNCFG |= PDRUNCFG_SYSPLL_PD;
