@@ -1,6 +1,7 @@
 # Commands
 
 End every full command with an End of Line (EOL, 0x0D) character.
+A command holds at most 19 characters, from the command code up to the EOL. A longer command is not executed and reports error code 0xA0.
 All described commands need some time to process, wait 0.2 ms before you transmit the next command.
 In case commands are sent too fast error code 0xA2 will be reported.
 

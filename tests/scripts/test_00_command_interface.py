@@ -467,3 +467,58 @@ def test_truncated_command_does_not_repeat_an_earlier_one(dali_serial):
         "the truncated command was sent as a frame"
     )
     assert result.length == 0xA3
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "S1 10 00000000001234",  # 20 characters, one too many
+        "S1 10 0000000000001234",  # 22, cut inside <data> it used to send 0x0001
+        "R1 1 10 00000000001234",
+        "W" + "0" * 16 + "186A0",
+        "Y" + "0" * 30 + "55",
+    ],
+)
+def test_a_command_longer_than_19_characters_is_refused(dali_serial, command):
+    """A command line holds 19 characters, doc/commands.md, and a longer one
+    answers 0xA0 and puts nothing on the bus.
+
+    The line used to be cut at 19 characters. A cut inside a hex field still
+    parsed, so a different frame went out and the host was told nothing.
+    """
+    assert len(command) > 19
+    dali_serial.flush_queue()
+    dali_serial.port.write(f"{command}\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE, f"{command} was executed: {result}"
+    assert result.length == 0xA0
+
+    result = dali_serial.get(0.3)
+    assert "queue is empty" in result.message, f"{command} reached the bus: {result}"
+
+
+def test_a_command_of_19_characters_is_accepted(dali_serial):
+    """The longest line that fits is still a command."""
+    command = "S1 10 0000000001234"
+    assert len(command) == 19
+    dali_serial.flush_queue()
+    dali_serial.port.write(f"{command}\r".encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.length == 0x10
+    assert result.data == 0x1234
+
+
+def test_the_command_after_an_overlong_one_is_executed(dali_serial):
+    """Refusing a long line must not cost the line that follows it."""
+    dali_serial.flush_queue()
+    dali_serial.port.write(("S1 10 " + "0" * 100 + "1234\r").encode("ascii"))
+    time.sleep(time_for_command_processing)
+    dali_serial.port.write("S1 10 5A5A\r".encode("ascii"))
+
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.INTERFACE
+    assert result.length == 0xA0
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    assert result.data == 0x5A5A

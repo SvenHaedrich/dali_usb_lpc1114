@@ -56,6 +56,7 @@ struct command_item {
 
 struct _command {
     char* line;
+    bool line_too_long; // more characters arrived than the buffer holds
     TaskHandle_t task_handle;
     QueueHandle_t queue_handle;
 } command = { 0 };
@@ -390,6 +391,10 @@ __attribute__((noreturn)) static void command_task(__attribute__((unused)) void*
             continue; // a line that never started with a command letter
         }
         board_flash(LED_SERIAL);
+        if (command.line_too_long) {
+            report_status(DALI_ERROR_CAN_NOT_PROCESS);
+            continue;
+        }
         execute_command(spec, &command.line[COMMAND_IDX_ARG]);
     }
 }
@@ -408,25 +413,26 @@ void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
     static char rx_buffer_2[COMMAND_BUFFER_SIZE];
     static char* active_buffer = rx_buffer_1;
     static uint8_t buffer_index;
+    static bool too_long;
 
     if (character == COMMAND_CHAR_EOL) {
         active_buffer[buffer_index] = '\000';
         command.line = active_buffer;
+        command.line_too_long = too_long;
         xTaskNotifyFromISR(command.task_handle, COMMAND_NOTIFY_PROCESS, eSetBits, higher_priority_woken);
         active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
         buffer_index = 0;
+        too_long = false;
     } else if (find_command(character) != NULL) {
         // a command letter starts a new line wherever it arrives
         active_buffer[0] = character;
         buffer_index = 1;
+        too_long = false;
+    } else if (buffer_index < (COMMAND_BUFFER_SIZE - 1)) {
+        // only appending advances the index, so an empty line cannot inherit a stale letter
+        active_buffer[buffer_index++] = character;
     } else {
-        /* Only appending advances the index. It used to advance after a line had
-           ended too, so an empty line was terminated at index 1 and index 0 still
-           held the command letter of the line before last. */
-        active_buffer[buffer_index] = character;
-        if (buffer_index < (COMMAND_BUFFER_SIZE - 1)) {
-            buffer_index++;
-        }
+        too_long = true;
     }
 }
 
