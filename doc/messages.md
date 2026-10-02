@@ -2,6 +2,8 @@
 
 ## Output
 
+The adapter receives all activities on the DALI bus. No matter if these were
+transmitted by another bus device or the adapter itself.
 Output messages use the following format (except for the firmware information message)
 
 ```syntax
