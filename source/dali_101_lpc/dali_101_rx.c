@@ -64,7 +64,6 @@ static const struct _rx_timing {
 // module variables
 struct _rx {
     uint32_t last_edge_count;
-    uint32_t last_full_frame_count;
     uint32_t edge_count;
     uint32_t end_inter_frame_idle;
     enum rx_status status;
@@ -185,18 +184,15 @@ static void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_
 
 static uint32_t frame_start_count(enum dali_frame_type type)
 {
-    if (type == DALI_FRAME_BACKWARD) {
-        return rx.last_full_frame_count + get_settling_time_us(type);
-    } else {
-        return rx.last_edge_count + get_settling_time_us(type);
-    }
+    return rx.last_edge_count + get_settling_time_us(type);
 }
 
 static void schedule_settling_timeout(enum dali_frame_type type)
 {
     rx.end_inter_frame_idle = frame_start_count(type);
     const uint32_t timer_now = board_dali_rx_get_count();
-    if ((rx.end_inter_frame_idle - timer_now) < 100)
+    // signed, so that a start already in the past is caught and not taken as 71 minutes ahead
+    if ((int32_t)(rx.end_inter_frame_idle - timer_now) < 100)
         rx.end_inter_frame_idle = timer_now + 100;
     board_dali_rx_set_period_match(rx.end_inter_frame_idle);
     board_dali_rx_period_match_enable(true);
@@ -297,7 +293,6 @@ static bool is_frame_received_twice(void)
 
 static void queue_frame(void)
 {
-    rx.last_full_frame_count = rx.last_edge_count;
     rx.frame.twice = is_frame_received_twice();
     queue_frame_for_send(&rx.frame);
     rx.frame = (struct dali_rx_frame){ 0 };
