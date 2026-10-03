@@ -83,6 +83,8 @@ def test_version():
         ("N1a1junk\r", DaliStatus.INTERFACE, 0xA3),
         ("I5\r", DaliStatus.INTERFACE, 0xA3),
         ("X5\r", DaliStatus.INTERFACE, 0xA3),
+        ("?x\r", DaliStatus.INTERFACE, 0xA3),
+        ("?5\r", DaliStatus.INTERFACE, 0xA3),
         # a line has to start with its command code, doc/commands.md
         ("xS1 10 1000\r", DaliStatus.INTERFACE, 0xA0),
         ("\nS1 10 1000\r", DaliStatus.INTERFACE, 0xA0),

@@ -368,12 +368,12 @@ static enum line_outcome parse_line(const struct serial_line line, struct comman
     if (spec == NULL || line.too_long) {
         return LINE_REFUSED;
     }
-    if (spec->kind == COMMAND_KIND_BANNER) {
-        return LINE_BANNER;
-    }
     struct arguments arguments;
     if (!read_arguments(spec, &line.text[COMMAND_IDX_ARG], &arguments)) {
         return LINE_BAD_ARGUMENTS;
+    }
+    if (spec->kind == COMMAND_KIND_BANNER) {
+        return LINE_BANNER;
     }
     if (spec->kind == COMMAND_KIND_FRAME) {
         *item = (struct command_item){ .kind = COMMAND_KIND_FRAME, .argument.frame = build_frame(spec, &arguments) };
