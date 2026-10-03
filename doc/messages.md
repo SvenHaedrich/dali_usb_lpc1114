@@ -35,7 +35,7 @@ Output messages use the following format (except for the firmware information me
  |        0x82 | Bad start bit timing             | Observed bit timing in µs |
  |        0x83 | Bad data bit timing              | Observed bit timing in µs |
  |        0x91 | System has failure (bus low)     | 0x00000000                |
- |        0x92 | System has recovered             | 0x00000000                |
+ |        0x92 | System has recovered             | Low period in µs          |
  |        0xA0 | Can not process command          | 0x00000000                |
  |        0xA2 | Command queue is full            | 0x00000000                |
  |        0xA3 | Bad command                      | 0x00000000                |
@@ -44,6 +44,9 @@ Output messages use the following format (except for the firmware information me
 > [!NOTE]
 > The observed bit timing is shifted by 8 bits to the left, and the lower 8 bits
 > code the data bit where the timing error occurred.
+> The duration of the low period is shifted the same way, with the lower 8 bits 0.
+> Its 24 bits hold up to 16.7 s, a longer low period wraps around. The timestamp of
+> 0x91 marks the start of the low period and the timestamp of 0x92 its end.
 
 ## Sequences
 
