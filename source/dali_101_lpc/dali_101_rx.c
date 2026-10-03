@@ -349,8 +349,8 @@ void rx_schedule_transmission(enum dali_frame_type type)
 
 void rx_schedule_query(void)
 {
-    const uint32_t timer_now = board_dali_rx_get_count();
-    const uint32_t query_count = timer_now + rx_timing.max_backward_settling_us;
+    // the settling time starts at the last edge and includes the stop condition, Figure 13
+    const uint32_t query_count = rx.edge_count + rx_timing.max_backward_settling_us;
     board_dali_rx_set_query_match(query_count);
     board_dali_rx_query_match_enable(true);
 }
