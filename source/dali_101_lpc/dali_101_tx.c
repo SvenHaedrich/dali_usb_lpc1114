@@ -144,7 +144,7 @@ static int calculate_counts(const struct dali_tx_frame frame)
         }
     } else {
         for (int_fast8_t i = (frame.length - 1); i >= 0; i--) {
-            rc = add_bit(frame.data & (1 << i));
+            rc = add_bit(frame.data & (1U << i));
             if (rc) {
                 return rc;
             }
