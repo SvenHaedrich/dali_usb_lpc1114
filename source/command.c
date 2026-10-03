@@ -2,7 +2,6 @@
 #include <stdlib.h>   // for NULL
 #include <stdint.h>   // uintXX_t
 #include <stdbool.h>  // for bool
-#include <limits.h>   // UINT_MAX
 
 #include "FreeRTOS.h" // tasks and queues
 #include "task.h"
@@ -14,7 +13,6 @@
 #include "command.h"
 // clang-format on
 
-#define COMMAND_BUFFER_SIZE 20
 #define COMMAND_IDX_CMD 0
 #define COMMAND_IDX_ARG 1
 #define COMMAND_QUERY 'Q'
@@ -27,12 +25,10 @@
 #define COMMAND_EXECUTE_SEQ 'X'
 #define COMMAND_CORRUPT 'I'
 #define COMMAND_CHAR_TWICE '+'
-#define COMMAND_CHAR_EOL 0x0d
 
 #define COMMAND_TASK_STACKSIZE (3U * configMINIMAL_STACK_SIZE)
 #define COMMAND_PRIORITY (tskIDLE_PRIORITY + 3U)
 #define COMMAND_QUEUE_LENGTH (4U)
-#define COMMAND_NOTIFY_PROCESS (1U)
 
 /* Everything a command asks the transmitter to do travels through one queue, so
    that MAIN carries it out in the order the host sent it. W, N and X used to run
@@ -55,9 +51,6 @@ struct command_item {
 };
 
 struct _command {
-    char* line;
-    bool line_too_long; // more characters arrived than the buffer holds
-    TaskHandle_t task_handle;
     QueueHandle_t queue_handle;
 } command = { 0 };
 
@@ -358,81 +351,77 @@ static const struct command_spec* find_command(char letter)
     return NULL;
 }
 
-static void execute_command(const struct command_spec* spec, char* argument_buffer)
-{
-    struct arguments arguments;
+enum line_outcome {
+    LINE_IGNORED,
+    LINE_REFUSED,
+    LINE_BAD_ARGUMENTS,
+    LINE_BANNER,
+    LINE_ITEM,
+};
 
-    if (spec->kind == COMMAND_KIND_BANNER) {
-        serial_print_head();
-        return;
+static enum line_outcome parse_line(const struct serial_line line, struct command_item* item)
+{
+    if (line.text[0] == '\000') {
+        return LINE_IGNORED; // a bare EOL is not a command
     }
-    if (!read_arguments(spec, argument_buffer, &arguments)) {
-        report_status(DALI_ERROR_BAD_COMMAND);
-        return;
+    const struct command_spec* spec = find_command(line.text[COMMAND_IDX_CMD]);
+    if (spec == NULL || line.too_long) {
+        return LINE_REFUSED;
+    }
+    if (spec->kind == COMMAND_KIND_BANNER) {
+        return LINE_BANNER;
+    }
+    struct arguments arguments;
+    if (!read_arguments(spec, &line.text[COMMAND_IDX_ARG], &arguments)) {
+        return LINE_BAD_ARGUMENTS;
     }
     if (spec->kind == COMMAND_KIND_FRAME) {
-        queue_item(
-            (struct command_item){ .kind = COMMAND_KIND_FRAME, .argument.frame = build_frame(spec, &arguments) });
+        *item = (struct command_item){ .kind = COMMAND_KIND_FRAME, .argument.frame = build_frame(spec, &arguments) };
+    } else {
+        *item = (struct command_item){ .kind = spec->kind, .argument.period_us = arguments.period_us };
+    }
+    return LINE_ITEM;
+}
+
+static void act_on(enum line_outcome outcome, const struct command_item item)
+{
+    if (outcome == LINE_IGNORED) {
         return;
     }
-    queue_item((struct command_item){ .kind = spec->kind, .argument.period_us = arguments.period_us });
+    board_flash(LED_SERIAL);
+    switch (outcome) {
+    case LINE_REFUSED:
+        report_status(DALI_ERROR_CAN_NOT_PROCESS);
+        break;
+    case LINE_BAD_ARGUMENTS:
+        report_status(DALI_ERROR_BAD_COMMAND);
+        break;
+    case LINE_BANNER:
+        serial_print_head();
+        break;
+    case LINE_ITEM:
+        queue_item(item);
+        break;
+    case LINE_IGNORED:
+        break;
+    }
 }
 
 __attribute__((noreturn)) static void command_task(__attribute__((unused)) void* dummy)
 {
     while (true) {
-        uint32_t notifications;
-        const BaseType_t result = xTaskNotifyWait(pdFALSE, UINT_MAX, &notifications, portMAX_DELAY);
-        if (result != pdPASS) {
-            continue;
+        const struct serial_line line = serial_take_line();
+        enum line_outcome outcome = LINE_IGNORED;
+        struct command_item item = { 0 };
+        if (line.text != NULL) {
+            outcome = parse_line(line, &item);
+            // printing can wait for the transmitter, the line buffer must not
+            serial_release_line();
         }
-        const struct command_spec* spec = find_command(command.line[COMMAND_IDX_CMD]);
-        if (spec == NULL) {
-            continue; // a line that never started with a command letter
-        }
-        board_flash(LED_SERIAL);
-        if (command.line_too_long) {
+        if (line.dropped) {
             report_status(DALI_ERROR_CAN_NOT_PROCESS);
-            continue;
         }
-        execute_command(spec, &command.line[COMMAND_IDX_ARG]);
-    }
-}
-
-static char* other_buffer(char* active, char* one, char* two)
-{
-    if (active == one) {
-        return two;
-    }
-    return one;
-}
-
-void command_receive_from_isr(char character, BaseType_t* higher_priority_woken)
-{
-    static char rx_buffer_1[COMMAND_BUFFER_SIZE];
-    static char rx_buffer_2[COMMAND_BUFFER_SIZE];
-    static char* active_buffer = rx_buffer_1;
-    static uint8_t buffer_index;
-    static bool too_long;
-
-    if (character == COMMAND_CHAR_EOL) {
-        active_buffer[buffer_index] = '\000';
-        command.line = active_buffer;
-        command.line_too_long = too_long;
-        xTaskNotifyFromISR(command.task_handle, COMMAND_NOTIFY_PROCESS, eSetBits, higher_priority_woken);
-        active_buffer = other_buffer(active_buffer, rx_buffer_1, rx_buffer_2);
-        buffer_index = 0;
-        too_long = false;
-    } else if (find_command(character) != NULL) {
-        // a command letter starts a new line wherever it arrives
-        active_buffer[0] = character;
-        buffer_index = 1;
-        too_long = false;
-    } else if (buffer_index < (COMMAND_BUFFER_SIZE - 1)) {
-        // only appending advances the index, so an empty line cannot inherit a stale letter
-        active_buffer[buffer_index++] = character;
-    } else {
-        too_long = true;
+        act_on(outcome, item);
     }
 }
 
@@ -475,9 +464,9 @@ void command_init(void)
 {
     static StaticTask_t task_buffer;
     static StackType_t task_stack[COMMAND_TASK_STACKSIZE];
-    command.task_handle = xTaskCreateStatic(
+    const TaskHandle_t task_handle = xTaskCreateStatic(
         command_task, "COMMAND", COMMAND_TASK_STACKSIZE, NULL, COMMAND_PRIORITY, task_stack, &task_buffer);
-    configASSERT(command.task_handle);
+    configASSERT(task_handle);
 
     static uint8_t queue_storage[COMMAND_QUEUE_LENGTH * sizeof(struct command_item)];
     static StaticQueue_t queue_buffer;

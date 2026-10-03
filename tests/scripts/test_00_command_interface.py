@@ -7,7 +7,7 @@ from dali_interface.serial import DaliSerial
 
 logger = logging.getLogger(__name__)
 timeout_time_sec = 2
-# doc/commands.md asks for 0.2 ms between commands; the suite keeps a margin
+# doc/commands.md asks for 0.5 ms between commands
 time_for_command_processing = 0.0005
 
 
@@ -83,6 +83,11 @@ def test_version():
         ("N1a1junk\r", DaliStatus.INTERFACE, 0xA3),
         ("I5\r", DaliStatus.INTERFACE, 0xA3),
         ("X5\r", DaliStatus.INTERFACE, 0xA3),
+        # a line has to start with its command code, doc/commands.md
+        ("xS1 10 1000\r", DaliStatus.INTERFACE, 0xA0),
+        ("\nS1 10 1000\r", DaliStatus.INTERFACE, 0xA0),
+        (" S1 10 1000\r", DaliStatus.INTERFACE, 0xA0),
+        ("Z\r", DaliStatus.INTERFACE, 0xA0),
     ],
 )
 def test_bad_parameter(dali_serial, command, expected_result, detailed_code):
@@ -156,8 +161,8 @@ def test_queue_overflow(dali_serial):
 
 
 def test_commands_sent_too_fast_are_refused(dali_serial):
-    """doc/commands.md asks for 0.2 ms between commands and promises 0xA2 when
-    that is not honoured. A whole sequence written in one go honours nothing.
+    """doc/commands.md asks for 0.5 ms between commands. A whole sequence written
+    in one go honours nothing and fills the command queue, which answers 0xA2.
     """
     dali_serial.flush_queue()
     dali_serial.port.write(b"W1a1\r" + b"N1a1\r" * 16 + b"X\r")
@@ -179,6 +184,49 @@ def test_commands_sent_too_fast_are_refused(dali_serial):
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     assert result.data == 0x5A5A
+
+
+def send_spaced(port, line, count, gap_sec):
+    deadline = time.perf_counter()
+    for _ in range(count):
+        while time.perf_counter() < deadline:
+            pass
+        port.write(line)
+        port.flush()
+        deadline += gap_sec
+
+
+def collect_codes(dali_serial):
+    codes = []
+    while True:
+        result = dali_serial.get(0.5)
+        if "queue is empty" in result.message:
+            return codes
+        codes.append(result.length)
+
+
+@pytest.mark.parametrize("gap_ms", [0.2, 1.0])
+def test_no_line_is_lost_silently(dali_serial, gap_ms):
+    """Every line is answered, or the adapter reports 0xA0 for the ones it dropped.
+
+    `Y` without data answers 0xA3, 24 bytes that take 0.48 ms to send, so at
+    0.2 ms, faster than doc/commands.md allows, the COMMAND task waits for the
+    transmitter while lines keep arriving.
+    """
+    lines = 40
+    dali_serial.flush_queue()
+    send_spaced(dali_serial.port, b"Y\r", lines, gap_ms / 1000)
+    codes = collect_codes(dali_serial)
+    answered = codes.count(0xA3)
+    assert set(codes) <= {0xA0, 0xA3}, f"unexpected replies {[hex(c) for c in codes]}"
+    if gap_ms >= 1.0:
+        assert answered == lines and 0xA0 not in codes, (
+            f"{answered} of {lines} answered"
+        )
+    else:
+        assert answered == lines or 0xA0 in codes, (
+            f"{lines - answered} of {lines} lost without 0xA0"
+        )
 
 
 def test_sequence_execute_without_definition(dali_serial):

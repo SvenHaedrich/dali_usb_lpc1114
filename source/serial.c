@@ -1,4 +1,5 @@
 // clang-format off
+#include <stdbool.h>  // for bool
 #include <stdint.h>   // uintXX_t
 #include <string.h>   // for memcpy
 
@@ -12,7 +13,6 @@
 #include "dali_101_lpc/dali_101.h"
 #include "board/board.h" // irq priorities
 #include "version.h"
-#include "command.h"
 #include "serial.h"
 // clang-format on
 
@@ -35,6 +35,11 @@
    every slot taken waits rather than adding a second place to lose messages. */
 #define SERIAL_SLOT_SIZE (40U)
 #define SERIAL_SLOTS (4U)
+
+// 19 characters and the terminating NUL, doc/commands.md
+#define SERIAL_LINE_SIZE (20U)
+#define SERIAL_CHAR_EOL ('\r')
+#define SERIAL_NOTIFY_LINE (1U)
 
 #define SERIAL_BAUDRATE_500000
 
@@ -64,6 +69,16 @@ static struct _serial_tx {
     uint8_t sent; // bytes of the head slot already handed to the FIFO
     volatile uint8_t used;
 } serial_tx;
+
+static struct _serial_rx {
+    char line[2][SERIAL_LINE_SIZE];
+    bool too_long[2];
+    uint8_t filling; // the buffer the interrupt writes, the other one belongs to the reader
+    uint8_t index;
+    volatile bool handed_over; // the reader holds the other buffer until it releases it
+    volatile bool dropped;     // a line ended while the reader still held the other buffer
+    TaskHandle_t volatile reader;
+} serial_rx;
 
 static void serial_fill_transmit_fifo(void)
 {
@@ -147,6 +162,53 @@ void serial_print_frame(const struct dali_rx_frame frame)
     serial_send(message, (uint8_t)(next - message));
 }
 
+static void serial_receive(char character, BaseType_t* higher_priority_woken)
+{
+    if (character != SERIAL_CHAR_EOL) {
+        if (serial_rx.index < (SERIAL_LINE_SIZE - 1U)) {
+            serial_rx.line[serial_rx.filling][serial_rx.index++] = character;
+        } else {
+            serial_rx.too_long[serial_rx.filling] = true;
+        }
+        return;
+    }
+    if (serial_rx.handed_over) {
+        serial_rx.dropped = true;
+    } else {
+        serial_rx.line[serial_rx.filling][serial_rx.index] = '\000';
+        serial_rx.filling ^= 1U;
+        serial_rx.handed_over = true;
+        if (serial_rx.reader != NULL) {
+            xTaskNotifyFromISR(serial_rx.reader, SERIAL_NOTIFY_LINE, eSetBits, higher_priority_woken);
+        }
+    }
+    serial_rx.index = 0;
+    serial_rx.too_long[serial_rx.filling] = false;
+}
+
+struct serial_line serial_take_line(void)
+{
+    serial_rx.reader = xTaskGetCurrentTaskHandle();
+    while (!serial_rx.handed_over && !serial_rx.dropped) {
+        (void)xTaskNotifyWait(0U, SERIAL_NOTIFY_LINE, NULL, portMAX_DELAY);
+    }
+    taskENTER_CRITICAL();
+    const uint8_t taken = serial_rx.filling ^ 1U;
+    const struct serial_line line = {
+        .text = serial_rx.handed_over ? serial_rx.line[taken] : NULL,
+        .too_long = serial_rx.too_long[taken],
+        .dropped = serial_rx.dropped,
+    };
+    serial_rx.dropped = false;
+    taskEXIT_CRITICAL();
+    return line;
+}
+
+void serial_release_line(void)
+{
+    serial_rx.handed_over = false;
+}
+
 void UART_IRQHandler(void)
 {
     const uint8_t IIR_value = LPC_UART->IIR;
@@ -159,7 +221,7 @@ void UART_IRQHandler(void)
     if (IIR_initd == SERIAL_IIR_RDA) {
         BaseType_t higher_priority_woken = pdFALSE;
         while (LPC_UART->LSR & U0LSR_RDR) {
-            command_receive_from_isr(LPC_UART->RBR, &higher_priority_woken);
+            serial_receive((char)LPC_UART->RBR, &higher_priority_woken);
         }
         portYIELD_FROM_ISR(higher_priority_woken);
     }

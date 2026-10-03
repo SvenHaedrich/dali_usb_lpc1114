@@ -2,8 +2,10 @@
 
 End every full command with an End of Line (EOL, 0x0D) character.
 A command holds at most 19 characters, from the command code up to the EOL. A longer command is not executed and reports error code 0xA0.
-All described commands need some time to process, wait 0.2 ms before you transmit the next command.
-In case commands are sent too fast error code 0xA2 will be reported.
+A line has to start with the command code. A line that starts with anything else, a line feed included, is not executed and reports error code 0xA0. A bare EOL is ignored.
+All described commands need some time to process, wait 0.5 ms before you transmit the next command.
+A command that is complete before the previous one was processed is not executed and reports error code 0xA0.
+A command that finds the command queue full reports error code 0xA2.
 
 ## Serial Parameters
 
