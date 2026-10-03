@@ -71,3 +71,21 @@ def test_a_frame_answers_a_query_only_inside_the_backward_window(
             frames[1].status == DaliStatus.TIMEOUT and frames[1].message == "TIMEOUT"
         ), shape
         assert frames[2].status == DaliStatus.LOOPBACK, shape
+
+
+def test_a_query_cut_by_a_sequence_does_not_time_out(dali_serial):
+    """W stops the query on the wire, so nothing is left to time out."""
+    dali_serial.flush_queue()
+    for command in ("Q1 10 FF01", "W1a1", "N1a1", "X"):
+        dali_serial.port.write(f"{command}\r".encode("ascii"))
+        deadline = time.perf_counter() + 0.0005
+        while time.perf_counter() < deadline:
+            pass
+    frames = collect(dali_serial)
+    shape = [(f.status, hex(f.length), hex(f.data)) for f in frames]
+
+    assert frames, shape
+    assert not any(f.length == 16 and f.data == 0xFF01 for f in frames), (
+        f"the query was not cut: {shape}"
+    )
+    assert all(f.message != "TIMEOUT" for f in frames), shape

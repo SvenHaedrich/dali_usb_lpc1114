@@ -49,6 +49,7 @@ void tx_reset(void)
     tx.state_now = true;
     tx.count[0] = 0;
     tx.sequence = false;
+    tx.is_query = false;
 }
 
 static int add_signal_phase(uint32_t duration_us, bool change_last_phase)
