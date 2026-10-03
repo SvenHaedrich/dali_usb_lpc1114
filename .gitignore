@@ -1,9 +1,10 @@
 .idea/
 .vscode/
 build/
-venv/
+.venv/
 __pycache__
 .pytest_cache
 ozone*
 dali-usb.code-workspace
 *.log
+.cache/

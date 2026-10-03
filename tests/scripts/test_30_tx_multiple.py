@@ -1,5 +1,7 @@
-import pytest
 import logging
+import time
+
+import pytest
 from dali_interface.dali_interface import DaliStatus
 
 logger = logging.getLogger(__name__)
@@ -22,7 +24,7 @@ timeout_time_sec = 2
     ],
 )
 def test_settling_priority(dali_serial, cmd, settling, data):
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     result = dali_serial.get(timeout_time_sec)
     assert result.status == DaliStatus.LOOPBACK
     timestamp_1 = result.timestamp
@@ -55,8 +57,37 @@ def test_settling_priority(dali_serial, cmd, settling, data):
 )
 def test_repeat(dali_serial, repeat, data):
     cmd = f"R1 {repeat:x} 10 {data:x}\r"
-    dali_serial.port.write(cmd.encode("utf-8"))
+    dali_serial.port.write(cmd.encode("ascii"))
     for j in range(repeat + 1):
         result = dali_serial.get(timeout_time_sec)
         assert result.status == DaliStatus.LOOPBACK
         assert result.data == data
+
+
+@pytest.mark.parametrize(
+    "command, status",
+    [
+        ("Y55\r", DaliStatus.LOOPBACK),
+        ("I\r", DaliStatus.TIMING),
+    ],
+)
+def test_backward_settling(dali_serial, command, status):
+    """`Y` and `I` both leave the backward frame settling time after a forward
+    frame, doc/commands.md. The corrupt frame of `I` reports as 0x83."""
+    dali_serial.flush_queue()
+    time.sleep(0.1)
+    dali_serial.port.write("S1 10 FFFF\r".encode("ascii"))
+    time.sleep(0.0005)
+    dali_serial.port.write(command.encode("ascii"))
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == DaliStatus.LOOPBACK
+    timestamp_1 = result.timestamp
+    result = dali_serial.get(timeout_time_sec)
+    assert result.status == status, f"{command.strip()} was not sent: {result}"
+    timestamp_2 = result.timestamp
+    delta = timestamp_2 - timestamp_1
+    fullbit_time = 833 / 1000000
+    expected_delta = 17 * fullbit_time + (5500 / 1000000)
+    tolerance = 1 / 1000
+    logger.debug(f"delta is {delta} expected is {expected_delta}")
+    assert (abs(delta - expected_delta)) < tolerance

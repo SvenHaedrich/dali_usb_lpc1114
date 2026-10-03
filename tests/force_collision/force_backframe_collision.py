@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-import serial
 import time
+
+import serial
 
 
 def send_spaced_backframes(spacing_us):
     mu_sec = 0.000001
     print(f"send backframes with {spacing_us} us spacing")
-    serial_0_port.write("Y00\r".encode("utf-8"))
+    serial_0_port.write("Y00\r".encode("ascii"))
     time.sleep(spacing_us * mu_sec)
-    serial_1_port.write("YFF\r".encode("utf-8"))
+    serial_1_port.write("YFF\r".encode("ascii"))
     time.sleep(0.2)
 
 
@@ -34,10 +35,10 @@ print("start test sequence")
 for i in range(5000):
     send_spaced_backframes(i * 2)
     print(
-        f"received from serial port 0: {serial_0_port.readline().decode('utf-8')}",
+        f"received from serial port 0: {serial_0_port.readline().decode('ascii', errors='replace')}",
         end="",
     )
     print(
-        f"received from serial port 1: {serial_1_port.readline().decode('utf-8')}",
+        f"received from serial port 1: {serial_1_port.readline().decode('ascii', errors='replace')}",
         end="",
     )
