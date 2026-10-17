@@ -1,13 +1,16 @@
-#include <limits.h>      // for ULONG_MAX
-#include <stdbool.h>     // for false, true, bool
-#include <stddef.h>      // for NULL
-#include <stdint.h>      // for uint32_t, uint8_t
-#include "FreeRTOS.h"    // for pdFALSE, pdTICKS_TO_MS, configASSERT, config...
-#include "board/dali.h"  // for board_dali_rx_pin, board_dali_rx_stopbit_mat...
-#include "dali_101.h"    // for dali_rx_frame, dali_101_tx_is_idle, dali_fra...
-#include "portmacro.h"   // for BaseType_t, portYIELD_FROM_ISR, portMAX_DELAY
-#include "queue.h"       // for xQueueReceive, xQueueSendToBack, QueueDefini...
-#include "task.h"        // for xTaskGetTickCount, eSetBits, xTaskNotifyFromISR
+// clang-format off
+#include "dali_101.h"          // for dali_rx_frame, dali_101_tx_is_idle, dali_fra...
+#include "dali_101_private.h"  // for dali_tx_start_send, tx_reset, dali_tx_repeat
+#include <errno.h>             // for EAGAIN
+#include <limits.h>            // for ULONG_MAX
+#include <stddef.h>            // for NULL
+#include <stdint.h>            // for uint32_t, uint8_t
+#include "FreeRTOS.h"          // for pdFALSE, pdTICKS_TO_MS, configASSERT, config...
+#include "board/dali.h"        // for board_dali_rx_pin, board_dali_rx_stopbit_mat...
+#include "portmacro.h"         // for BaseType_t, portYIELD_FROM_ISR, portMAX_DELAY
+#include "queue.h"             // for xQueueReceive, xQueueSendToBack, QueueDefini...
+#include "task.h"              // for xTaskGetTickCount, eSetBits, xTaskNotifyFromISR
+// clang-format on
 
 #define DALI_RX_TASK_STACKSIZE (2U * configMINIMAL_STACK_SIZE)
 #define DALI_RX_PRIORITY (tskIDLE_PRIORITY + 4U)
@@ -17,7 +20,7 @@
 #define NOTIFY_PRIORITY (0x04)
 #define NOTIFY_QUERY (0x08)
 
-#define QUEUE_SIZE (5U)
+#define QUEUE_SIZE (6U) // one slot is kept free to report an overflow
 
 enum rx_status {
     IDLE = 0,
@@ -61,7 +64,6 @@ static const struct _rx_timing {
 // module variables
 struct _rx {
     uint32_t last_edge_count;
-    uint32_t last_full_frame_count;
     uint32_t edge_count;
     uint32_t end_inter_frame_idle;
     enum rx_status status;
@@ -69,16 +71,10 @@ struct _rx {
     bool last_data_bit;
     bool transmission_is_waiting;
     enum dali_frame_type transmission_frame_type;
+    bool queue_overflow;
     TaskHandle_t task_handle;
     QueueHandle_t queue_handle;
 } rx = { 0 };
-
-// external references from tx module
-extern void dali_tx_init(void);
-extern void dali_tx_start_send(void);
-extern uint32_t tx_get_settling_time(void);
-extern bool dali_tx_repeat(void);
-extern void tx_reset(void);
 
 void dali_rx_irq_capture_callback(void)
 {
@@ -120,6 +116,7 @@ static uint32_t get_settling_time_us(enum dali_frame_type type)
     static const uint32_t settling_time_us[] = { 5500, 13500, 14900, 16300, 17900, 19500, 2450 };
     switch (type) {
     case DALI_FRAME_BACKWARD:
+    case DALI_FRAME_CORRUPT:
         return settling_time_us[0];
     case DALI_FRAME_FORWARD_1:
     case DALI_FRAME_QUERY_1:
@@ -151,7 +148,24 @@ static bool is_valid_begin_bit_timing(const uint32_t time_difference_us)
     return true;
 }
 
-void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
+static void queue_frame_for_send(const struct dali_rx_frame* frame)
+{
+    if (uxQueueSpacesAvailable(rx.queue_handle) > 1) {
+        if (xQueueSendToBack(rx.queue_handle, frame, 0) == pdPASS) {
+            rx.queue_overflow = false;
+            return;
+        }
+    }
+    if (!rx.queue_overflow) {
+        const struct dali_rx_frame overflow = { .timestamp = pdTICKS_TO_MS(xTaskGetTickCount()),
+                                                .status = DALI_ERROR_DALI_QUEUE_FULL };
+        if (xQueueSendToBack(rx.queue_handle, &overflow, 0) == pdPASS) {
+            rx.queue_overflow = true;
+        }
+    }
+}
+
+static void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
 {
     if (rx.status == ERROR_IN_FRAME) {
         return;
@@ -165,24 +179,21 @@ void queue_error_frame(enum dali_status code, uint8_t bit, uint32_t time_us)
     rx.frame.status = code;
     rx.frame.length = 0;
     rx.frame.data = (time_us & 0xffffff) << 8 | bit;
-    xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+    queue_frame_for_send(&rx.frame);
     rx.status = ERROR_IN_FRAME;
 }
 
 static uint32_t frame_start_count(enum dali_frame_type type)
 {
-    if (type == DALI_FRAME_BACKWARD) {
-        return rx.last_full_frame_count + get_settling_time_us(type);
-    } else {
-        return rx.last_edge_count + get_settling_time_us(type);
-    }
+    return rx.last_edge_count + get_settling_time_us(type);
 }
 
 static void schedule_settling_timeout(enum dali_frame_type type)
 {
     rx.end_inter_frame_idle = frame_start_count(type);
     const uint32_t timer_now = board_dali_rx_get_count();
-    if ((rx.end_inter_frame_idle - timer_now) < 100)
+    // signed, so that a start already in the past is caught and not taken as 71 minutes ahead
+    if ((int32_t)(rx.end_inter_frame_idle - timer_now) < 100)
         rx.end_inter_frame_idle = timer_now + 100;
     board_dali_rx_set_period_match(rx.end_inter_frame_idle);
     board_dali_rx_period_match_enable(true);
@@ -202,7 +213,7 @@ static void generate_timeout_frame(void)
         rx.frame.length = 0;
         rx.frame.loopback = false;
         rx.frame.data = 0;
-        xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
+        queue_frame_for_send(&rx.frame);
         rx_reset();
     }
 }
@@ -283,12 +294,8 @@ static bool is_frame_received_twice(void)
 
 static void queue_frame(void)
 {
-    rx.last_full_frame_count = rx.last_edge_count;
     rx.frame.twice = is_frame_received_twice();
-    const BaseType_t result = xQueueSendToBack(rx.queue_handle, &rx.frame, 0);
-    if (result == errQUEUE_FULL) {
-        configASSERT(false);
-    }
+    queue_frame_for_send(&rx.frame);
     rx.frame = (struct dali_rx_frame){ 0 };
 }
 
@@ -300,6 +307,19 @@ static void process_pending_frame(void)
         schedule_settling_timeout(DALI_FRAME_FORWARD_5);
     }
     rx.status = INTER_FRAME_IDLE;
+}
+
+bool dali_101_is_ready_for_command(void)
+{
+    return dali_101_tx_is_idle() && !rx.transmission_is_waiting;
+}
+
+// W throws the waveform away, so a start the receiver still has scheduled for it
+// has to go too, or transmission_is_waiting never clears
+void rx_cancel_transmission(void)
+{
+    board_dali_rx_period_match_enable(false);
+    rx.transmission_is_waiting = false;
 }
 
 void rx_schedule_transmission(enum dali_frame_type type)
@@ -329,8 +349,8 @@ void rx_schedule_transmission(enum dali_frame_type type)
 
 void rx_schedule_query(void)
 {
-    const uint32_t timer_now = board_dali_rx_get_count();
-    const uint32_t query_count = timer_now + rx_timing.max_backward_settling_us;
+    // the settling time starts at the last edge and includes the stop condition, Figure 13
+    const uint32_t query_count = rx.edge_count + rx_timing.max_backward_settling_us;
     board_dali_rx_set_query_match(query_count);
     board_dali_rx_query_match_enable(true);
 }
@@ -483,11 +503,11 @@ __attribute__((noreturn)) static void rx_task(__attribute__((unused)) void* dumm
     }
 }
 
-bool dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever)
+int dali_101_get(struct dali_rx_frame* frame, uint32_t wait_ms, bool forever)
 {
     TickType_t wait_ticks = forever ? portMAX_DELAY : pdMS_TO_TICKS(wait_ms);
     const BaseType_t rc = xQueueReceive(rx.queue_handle, frame, wait_ticks);
-    return (rc == pdPASS);
+    return (rc == pdPASS) ? 0 : -EAGAIN;
 }
 
 static void dali_rx_init(void)
@@ -496,6 +516,7 @@ static void dali_rx_init(void)
     static StackType_t task_stack[DALI_RX_TASK_STACKSIZE];
     rx.task_handle =
         xTaskCreateStatic(rx_task, "DALI RX", DALI_RX_TASK_STACKSIZE, NULL, DALI_RX_PRIORITY, task_stack, &task_buffer);
+    configASSERT(rx.task_handle);
 
     static uint8_t queue_storage[QUEUE_SIZE * sizeof(struct dali_rx_frame)];
     static StaticQueue_t queue_buffer;

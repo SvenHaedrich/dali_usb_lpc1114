@@ -1,12 +1,14 @@
+// clang-format off
 #include "board.h"
-#include <stdbool.h>    // for bool
 #include <stdint.h>     // for uint32_t
 #include "bitfields.h"  // for PDRUNCFG_SYSPLL_PD, PDRUNCFG_SYSOSC_PD, SYSAH...
 #include "dali.h"       // for board_setup_dali_clock
 #include "led.h"        // for board_led_init
 #include "lpc11xx.h"    // for LPC_SYSCON, LPC_SYSCON_TypeDef, NVIC_EnableIRQ
+// clang-format on
 
 #define DALI_TIMER_RATE_HZ (1000000U)
+#define FLASHCFG_FLASHTIM_3_CLOCKS (0x02U)
 
 uint32_t SystemCoreClock = 12000000;
 
@@ -21,11 +23,15 @@ static void board_setup_main_clock(void)
     LPC_SYSCON->PDRUNCFG &= ~PDRUNCFG_SYSOSC_PD;
 
     // wait 200 µs for main oscillator to stabilize
-    for (uint32_t i = 0; i < 0x100U; i++)
+    for (volatile uint32_t i = 0; i < 0x100U; i++)
         ;
 
-    // set PLL input to main oscillator
+    // set PLL input to main oscillator, which only takes effect on a 0 to 1 edge of the update register
     LPC_SYSCON->SYSPLLCLKSEL = 0x01U;
+    LPC_SYSCON->SYSPLLCLKUEN = 0x00U;
+    LPC_SYSCON->SYSPLLCLKUEN = 0x01U;
+    while (!(LPC_SYSCON->SYSPLLCLKUEN & 0x01U))
+        ;
 
     // power down pll to change divider settings
     LPC_SYSCON->PDRUNCFG |= PDRUNCFG_SYSPLL_PD;
@@ -46,8 +52,8 @@ static void board_setup_main_clock(void)
     // set system clock divider to 1
     LPC_SYSCON->SYSAHBCLKDIV = 0x01U;
 
-    // set flash access to 3 cloks
-    LPC_FLASHCTRL->FLASHCFG = 0x03U;
+    // three clocks per flash access, enough up to 50 MHz; bits 31:2 have to be written back as read
+    LPC_FLASHCTRL->FLASHCFG = (LPC_FLASHCTRL->FLASHCFG & ~FLASHCFG_FLASHTIM_MASK) | FLASHCFG_FLASHTIM_3_CLOCKS;
 
     // set main clock source to pll
     LPC_SYSCON->MAINCLKSEL = 0x03U;
@@ -94,5 +100,5 @@ void board_init(void)
 
 void board_system_init(void)
 {
-    board_setup_clocking(); // TODO make at least the system clock init part of the pre-main init
+    board_setup_clocking();
 }

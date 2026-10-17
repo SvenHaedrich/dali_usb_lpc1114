@@ -1,5 +1,0 @@
-pytest
-pyusb
-pyserial
-termcolor
-typeguard

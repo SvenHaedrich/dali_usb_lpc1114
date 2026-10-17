@@ -1,49 +1,59 @@
+# Commands
+
+End every full command with an End of Line (EOL, 0x0D) character.
+A command holds at most 19 characters, from the command code up to the EOL. A longer command is not executed and reports error code 0xA0.
+A line has to start with the command code. A line that starts with anything else, a line feed included, is not executed and reports error code 0xA0. A bare EOL is ignored.
+All described commands need some time to process, wait 0.5 ms before you transmit the next command.
+A command that is complete before the previous one was processed is not executed and reports error code 0xA0.
+A command that finds the command queue full reports error code 0xA2.
+
 ## Serial Parameters
 
 Baudrate: 500,000 Baud \
 Data bits: 8 \
 Start bit: 1 \
-Stop bit: 1 
+Stop bit: 1
+
+## Error Handling
+
+If an error is detected during command processing it will trigger a DALI frame message with the respective [error code](messages.md).
 
 ## Query `Q`
 
-Send a DALI forward frame and report the systems reaction. A backframe message is allways generated.
+Send a DALI forward frame and report the systems reaction. A frame message is always generated.
 
-    'Q' <priority> ' ' <bits> (' '|'+') <data> EOL
+    'Q' <priority> ' ' <bits> ' ' <data>
 
     'Q'        : command code
-    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22. 
-                 priority = 6 sends a frame immediately after the stop condition 
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22.
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
-    ' ' | '+'  : a plus indicates that the forward frame is send twice
     <data>     : frame data to send in hex presentation
-    EOL        : end of line = 0x0d
 
 ## Send Frame `S`
 
 Send a DALI forward frame.
 
-    'S' <priority> ' ' <bits> (' '|'+') <data> EOL
+    'S' <priority> ' ' <bits> (' '|'+') <data>
 
     'S'        : command code
-    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22.
+                 priority = 6 sends the frame immediately after the stop condition
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
-    ' ' | '+'  : a plus indicates that the frame is send twice
+    ' ' | '+'  : a plus indicates that the frame is sent twice
     <data>     : frame data to send in hex presentation
-    EOL        : end of line = 0x0d
 
 ## Repeat Frame `R`
 
-Send identical DALI frames repeated times. Note that sending repeated frames twice is not supported.
+Send identical DALI frames multiple times. Note that sending repeated frames twice is not supported.
 
-    'R' <priority> ' ' <repeat> ' ' <bits> ' ' <data> EOL
+    'R' <priority> ' ' <repeat> ' ' <bits> ' ' <data>
 
     'R'        : command code
-    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22
-    <repeat>   : number of repetitions in hex presentation 
+    <priority> : inter frame timing used. In the range 1..5 as defined in IEC 62386-101:2022 Table 22.
+                 priority = 6 sends the frames immediately after the stop condition
+    <repeat>   : number of additional repetitions in hex presentation (00..FF)
     <bits>     : number of data bits to send 0..32 in hex presentation (0..20)
     <data>     : frame data to send in hex presentation
-    EOL        : end of line = 0x0d
 
 ## Send Backward Frame `Y`
 
@@ -53,44 +63,45 @@ Send a backward frame.
 
     'Y'     : command code
     <value> : value to transmit in hex presentation (00..FF)
-    EOL     : end of line = 0x0d
 
 ## Send Corrupt Backward Frame `I`
 
-Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2. 
+Send a corrupt backward frame as described in IEC 62386-101:2022 9.6.2.
+It uses the same inter frame timing as a backward frame sent with `Y`.
 
     'I'     : command code
-    EOL     : end of line = 0x0d
 
 ## Request Information `?`
 
-Print information about the firmware. No end of line character required.
+Print information about the firmware.
+
+    '?'     : command code
+
+The output will be similar to this message:
+
+    DALI USB interface - SevenLab 2026
+    Version X.Y.Z
 
 ## Start Sequence `W`
 
-Start the defintion of a sequence.
+Start the definition of a sequence. This command stops ongoing transmissions immediately and might leave a corrupt DALI frame behind which will be reported as such.
 
-    'W' <period> EOL
+    'W' <period>
 
     'W'      : command code
-    <period> : time in microseconds, given in hex representation.
-    EOL      : end of line = 0x0d
+    <period> : time in microseconds, given in hex representation. Minimal time is 25 microseconds, maximum total time of the sequence is limited to about 71 minutes.
 
 ## Next Sequence Step `N`
 
-Continue to define the timing for a sequence.
+Continue to define the timing for a sequence. The maximum number of Next Sequence Steps is 66 per transmission.
 
-    'N' <period> EOL
+    'N' <period>
 
     'N'      : command code
-    <period> : time in microseconds, given in hex 
-               representation.
-    EOL      : end of line = 0x0d
+    <period> : time in microseconds, given in hex representation. Minimal time is 25 microseconds, maximum total time of the sequence is limited to about 71 minutes.
 
 ## Execute Sequence `X`
 
-Execute a defined sequence.
+Execute a defined sequence. The command is executed immediately and might collide with ongoing transmissions on the DALI bus.
 
     'X'     : command code
-    EOL     : end of line = 0x0d
-

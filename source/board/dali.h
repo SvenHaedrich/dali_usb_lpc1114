@@ -1,6 +1,8 @@
 #pragma once
-#include <stdint.h>
-#include <stdbool.h>
+// clang-format off
+#include <stdint.h>     // for uint32_t
+#include <stdbool.h>    // for bool, false, true
+// clang-format on
 
 #define DALI_RX_IDLE false
 #define DALI_RX_ACTIVE true
