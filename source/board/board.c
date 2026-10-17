@@ -8,6 +8,7 @@
 // clang-format on
 
 #define DALI_TIMER_RATE_HZ (1000000U)
+#define FLASHCFG_FLASHTIM_3_CLOCKS (0x02U)
 
 uint32_t SystemCoreClock = 12000000;
 
@@ -51,8 +52,8 @@ static void board_setup_main_clock(void)
     // set system clock divider to 1
     LPC_SYSCON->SYSAHBCLKDIV = 0x01U;
 
-    // set flash access to 3 cloks
-    LPC_FLASHCTRL->FLASHCFG = 0x03U;
+    // three clocks per flash access, enough up to 50 MHz; bits 31:2 have to be written back as read
+    LPC_FLASHCTRL->FLASHCFG = (LPC_FLASHCTRL->FLASHCFG & ~FLASHCFG_FLASHTIM_MASK) | FLASHCFG_FLASHTIM_3_CLOCKS;
 
     // set main clock source to pll
     LPC_SYSCON->MAINCLKSEL = 0x03U;
