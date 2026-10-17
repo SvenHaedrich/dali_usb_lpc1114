@@ -12,4 +12,4 @@ More details in the [Hardware Repository](https://github.com/SvenHaedrich/kicad_
 [Commands](doc/commands.md) \
 [Messages and Command Usage](doc/messages.md) \
 [Installation and Building](doc/install_build.md) \
-[Tests](doc/tests.md) 
+[Tests](doc/tests.md)

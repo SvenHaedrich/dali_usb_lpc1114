@@ -3,12 +3,14 @@
 This script:
 
 ```bash
+cd tests
 ./run_tests.sh
-
 ```
 
 prepares a virtual environment in `tests/.venv`, and then runs the tests.
 Optionally you can add `--log-level=debug` for more detailed logging.
+
+## Setup
 
 The test set-up expects a DALI-USB device connected to `/dev/ttyUSB0`, electrically connected with its inputs to a DALI power supply.
 

@@ -35,8 +35,8 @@ def test_version():
 
     major, minor, bugfix = (int(part) for part in versions[0].split()[1].split("."))
     logger.debug(f"found Version information {major}.{minor}.{bugfix}")
-    assert major == 3
-    assert minor == 7
+    assert major == 4
+    assert minor == 0
     assert bugfix >= 0
 
 
