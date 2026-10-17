@@ -36,12 +36,22 @@ cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/arm-non
 cmake --build build --clean-first
 ```
 
+> [!IMPORTANT]
+> A Debug build does not arm the watchdog, and neither does a build without a build type.
+> A debugger can hold the core halted for as long as it likes, but a stalled adapter is
+> never reset. Do not put such a build into the field.
+
 ### Release build
 
 ```bash
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/arm-none-eabi-gcc
 cmake --build build --clean-first
 ```
+
+A Release build arms a 60 s watchdog, and so do `MinSizeRel` and `RelWithDebInfo`. The MAIN
+task feeds it. When MAIN stops for a minute, for example because the serial transmitter
+stalls, the adapter resets and prints its banner again. The watchdog keeps counting while a
+debugger halts the core, so a breakpoint held for more than a minute resets the chip.
 
 ## Gihub Action Build
 

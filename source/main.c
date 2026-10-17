@@ -14,6 +14,7 @@
 #include "FreeRTOS.h"              // for configMINIMAL_STACK_SIZE, StaticT...
 #include "board/board.h"           // for board_init
 #include "board/led.h"             // for board_flash, LED_DALI
+#include "board/watchdog.h"        // for board_watchdog_feed, board_watchdog_start
 #include "dali_101_lpc/dali_101.h" // for dali_101_get, dali_101_init, dali...
 #include "portmacro.h"             // for StackType_t
 #include "command.h"               // for command_execute_pending, command_...
@@ -33,12 +34,14 @@ __attribute__((noreturn)) static void main_task(__attribute__((unused)) void* du
             serial_print_frame(rx_frame);
         }
         command_execute_pending();
+        board_watchdog_feed();
     }
 }
 
 int main(void)
 {
     board_init();
+    board_watchdog_start();
     dali_101_init();
     command_init();
     serial_init();
