@@ -16,10 +16,10 @@ The test set-up expects a DALI-USB device connected to `/dev/ttyUSB0`, electrica
 
 `scripts/test_90_robustness.py` checks that the adapter stays alive when the DALI receive
 queue runs full. It runs with the rest of the suite, and comes last by its filename. Its tests
-carry the `destructive` marker, so
+carry the `possibly_destructive` marker, so
 
 ```bash
-./run_tests.sh -m destructive
+./run_tests.sh -m possibly_destructive
 ```
 
 runs them on their own.

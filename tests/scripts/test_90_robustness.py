@@ -1,9 +1,9 @@
 """Robustness tests: the adapter has to survive losing frames, and say so.
 
 They run with the rest of the suite and come last by filename, which is where
-they belong - they leave the adapter at the end of a flood. The `destructive`
+they belong - they leave the adapter at the end of a flood. The `possibly_destructive`
 marker is kept so they can still be run on their own with
-`./run_tests.sh -m destructive`.
+`./run_tests.sh -m possibly_destructive`.
 
 They read the port raw rather than through `DaliSerial`, because they count
 messages and status codes in the byte stream itself, including the ones the
@@ -139,7 +139,7 @@ def port():
     port.close()
 
 
-@pytest.mark.destructive
+@pytest.mark.possibly_destructive
 def test_survives_rx_queue_overload(port):
     """The adapter has to stay alive when the MAIN task cannot drain the queue.
 
@@ -204,7 +204,7 @@ def test_survives_rx_queue_overload(port):
     )
 
 
-@pytest.mark.destructive
+@pytest.mark.possibly_destructive
 def test_reports_loss_at_the_end_of_a_burst(port):
     """A frame dropped as the last one on the bus still has to be reported.
 
